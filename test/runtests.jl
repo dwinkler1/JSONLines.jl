@@ -133,3 +133,10 @@ writefile("escaped2.jsonl", escaped)
     @test readfile("oneline_plus2.jsonl") |> DataFrame == oneline_plus
     @test readfile("escaped2.jsonl") |> DataFrame == escaped
 end
+
+# Cleanup
+rm("full_web.jsonl")
+rm("full_mtcars.jsonl")
+rm("oneline2.jsonl")
+rm("oneline_plus2.jsonl")
+rm("escaped2.jsonl")
