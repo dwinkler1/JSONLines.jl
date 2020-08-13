@@ -1,0 +1,5 @@
+.vscode**
+/docs/build/
+Manifest.toml
+test/full_*.jsonl
+test/*2.jsonl
