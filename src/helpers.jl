@@ -1,5 +1,6 @@
 const _LSEP = UInt8('\n')
 const _EOL = UInt8('}')
+const _BOL = UInt8('{')
 const _INT_MAX = typemax(Int)
 
 # Detect space in UInt8
@@ -61,8 +62,13 @@ end
 # Line splitter
 function splitfi(fi, indices)
     out = Vector{Vector{UInt8}}(undef, length(indices)-1)
-    @inbounds for line in 2:lastindex(indices)
-        out[line-1] = fi[indices[prevind(indices, line)]:indices[line]]
+    @inbounds tmp = fi[indices[1]:indices[2]]
+    idx = findfirst(isequal(_BOL), tmp)
+    @inbounds out[firstindex(out)] = tmp[idx:end]
+    for line in 3:lastindex(indices)
+        @inbounds tmp = fi[nextind(fi, indices[prevind(indices, line)]):indices[line]]
+        idx = findfirst(isequal(_BOL), tmp)
+        @inbounds out[line-1] = tmp[idx:end]
     end
     return out
 end
@@ -93,14 +99,14 @@ function mmapstr(file, nlines::Int, skip::Int)
         start = nextind(fi, cur)
         cur = detecteol(fi, cur)
         if cur == len || isnothing(cur)
-            return [@inbounds fi[start:lastindex(fi)]]
+            return [@inbounds fi[findnext(isequal(_BOL), fi, start):lastindex(fi)]]
         end
     else
         start = firstindex(fi)
         @warn "Ignoring skip value: $skip"
     end
 
-    nlines == 1 && (return [@inbounds fi[start:prevind(fi, cur)]])
+    nlines == 1 && (return [@inbounds fi[findnext(isequal(_BOL), fi, start):prevind(fi, cur)]])
 
     append!(splits, [start, cur])
     if cur < len 
