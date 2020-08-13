@@ -25,9 +25,9 @@ function readfile(file; structtype = nothing, nrows = nothing, skip = nothing, u
     ff = getfile(file, nrows, skip, usemmap)
     length(ff) == 0 && return JSON3.Object[]
     if isnothing(structtype)
-        rows = JSON3.read.(lstrip.(String.(ff)))
+        rows = [JSON3.read(row) for row in ff]
     else
-        rows = JSON3.read.(lstrip.(String.(ff)), structtype)
+        rows = [JSON3.read(row, structtype) for row in ff]
     end
     return rows
 end
