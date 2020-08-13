@@ -56,8 +56,8 @@ jobs:
       - run: |
           julia --project=docs -e '
             using Documenter: doctest
-            using JSONL
-            doctest(JSONL)'
+            using JSONLines
+            doctest(JSONLines)'
       - run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
