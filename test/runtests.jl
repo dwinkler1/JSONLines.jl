@@ -46,6 +46,15 @@ end
     @test readfile("testfiles/escapedeol.jsonl", usemmap = true)  |> DataFrame == escaped
 end
 
+@testset "Read nworkers" begin
+# full file equal
+    @test readfile("testfiles/jsonlwebsite.jsonl", nworkers = 2) |> DataFrame == full_web
+    @test readfile("testfiles/mtcars.jsonl", nworkers = 3) |> DataFrame == noprom_mtcars
+    @test readfile("testfiles/oneline.jsonl", nworkers = 5) |> DataFrame== oneline
+    @test readfile("testfiles/oneline_plus.jsonl", nworkers = Base.Threads.nthreads())  |> DataFrame == oneline_plus
+    @test readfile("testfiles/escapedeol.jsonl", nworkers = Base.Threads.nthreads() + 1)  |> DataFrame == escaped
+end
+
 @testset "skip & nrows" begin
 # skip + nrows = nrow(file)
     @test readfile("testfiles/jsonlwebsite.jsonl", skip = 1, nrows = nrow_fw-1)  |> DataFrame == full_web[2:end, :]
