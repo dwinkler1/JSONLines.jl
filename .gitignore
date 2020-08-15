@@ -3,3 +3,4 @@
 Manifest.toml
 test/full_*.jsonl
 test/*2.jsonl
+benchmarks.jl
