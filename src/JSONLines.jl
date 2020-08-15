@@ -8,6 +8,7 @@ export readfile,
     readchunks,
     writefile
 
+include("lazyrows.jl")
 include("helpers.jl")
 include("chunks.jl")
 

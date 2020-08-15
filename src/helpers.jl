@@ -14,7 +14,7 @@ function getfile(file, nlines, skip, usemmap)
     if usemmap
         isnothing(nlines) && (nlines = _INT_MAX)
         isnothing(skip) && (skip = 0)
-        ff = mmapstr(file, nlines, skip)
+        ff = mmaplazy(file, nlines, skip)
     else
         nlines !== nothing || skip !== nothing && @warn "nlines and skip require mmap. Returning all lines."
         ff = readstr(file)

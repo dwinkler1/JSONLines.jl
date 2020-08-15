@@ -100,3 +100,14 @@ function parsechunks(rows, nworkers, structtype)
     end
     return out
 end
+
+function parsechunks(rows::LazyRows, nworkers, structtype)
+    len = length(rows)
+    out = Vector{JSON3.Object}(undef, len)
+    chunks = LazyChunks(rows, nworkers)
+    @sync for (i, chunk) in enumerate(chunks)
+            @spawn out[chunks.chunkindices[i][1]:chunks.chunkindices[i][2]] = parserows(chunk, structtype)
+        end
+    return out
+end
+

@@ -61,7 +61,7 @@ Base.length(c::LazyChunks) = length(c.chunkindices)
 function detectrow(file::Vector{UInt8}, prevend::Int)
     searchstart = nextind(file, prevend)
     rowstart = findnext(isequal(_BOL), file, searchstart)
-    rowend = findnext(isequal(_EOL), file, searchstart)
+    rowend = findnext(isequal(_LSEP), file, searchstart)
     if isnothing(rowstart)
         rowstart = lastindex(file)
     end
@@ -77,7 +77,7 @@ function skiprows(file::Vector{UInt8}, n::Int, prevend::Int = 0)
         if isnothing(ind)
             return lastindex(file)
         end
-        ind = findnext(isequal(_EOL), file, nextind(file, ind))
+        ind = findnext(isequal(_LSEP), file, nextind(file, ind))
     end
     if isnothing(ind)
         return lastindex(file)
@@ -121,8 +121,11 @@ end
 
 function makechunks(r::LazyRows, n::Int)
     len = length(r)
+    if len == 1
+        return [1 => 1]
+    end
     if n > len
-        throw(ArgumentError("Number of chunks, n, cannot be greater than the number of rows"))
+        n = len
     end
     chunksize = (len + 1) ÷ n
     chunkindices = Vector{Pair{Int, Int}}(undef, n)
