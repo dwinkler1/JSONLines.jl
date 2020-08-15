@@ -1,8 +1,4 @@
-const _LSEP = UInt8('\n')
-const _EOL = UInt8('}')
-const _BOL = UInt8('{')
-const _INT_MAX = typemax(Int)
-
+## Lazy interface and methods
 struct LazyRows
     file::Vector{UInt8}
     rowindices::Vector{Pair{Int, Int}}
@@ -58,66 +54,8 @@ end
 Base.length(r::LazyRows) = length(r.rowindices)
 Base.length(c::LazyChunks) = length(c.chunkindices)
 
-function detectrow(file::Vector{UInt8}, prevend::Int)
-    searchstart = nextind(file, prevend)
-    rowstart = findnext(isequal(_BOL), file, searchstart)
-    rowend = findnext(isequal(_LSEP), file, searchstart)
-    if isnothing(rowstart)
-        rowstart = lastindex(file)
-    end
-    if isnothing(rowend)
-        rowend = lastindex(file)
-    end
-    return rowstart => rowend
-end
-
-function skiprows(file::Vector{UInt8}, n::Int, prevend::Int = 0)
-    ind = nextind(file, prevend)
-    for _ in 1:n
-        if isnothing(ind)
-            return lastindex(file)
-        end
-        ind = findnext(isequal(_LSEP), file, nextind(file, ind))
-    end
-    if isnothing(ind)
-        return lastindex(file)
-    end
-    return ind
-end
-
 iseof(rowindex::Pair{Int, Int}, filelength) = rowindex[2] == filelength
 isrow(rowindex::Pair{Int, Int}) = rowindex[1] < rowindex[2]
-
-function mmaplazy(file, nlines, skip)
-    fi = Mmap.mmap(file);
-    len = lastindex(fi)
-    rowindices = Pair{Int, Int}[]
-    if skip > 0
-        filestart = skiprows(fi, skip, 0)
-        if filestart == len
-            return LazyRows(UInt8[], Pair{Int, Int}[])
-        end
-    else 
-        filestart = 0
-    end
-    row = detectrow(fi, filestart)
-    if isrow(row)
-        push!(rowindices, row)
-    end
-    if iseof(row, len)
-        return LazyRows(fi, rowindices)
-    end
-    for rowi in 2:nlines
-        row = detectrow(fi, rowindices[rowi-1][2])
-        if isrow(row)
-            push!(rowindices, row)
-        end
-        if iseof(row, len)
-            return LazyRows(fi, rowindices)
-        end
-    end
-    return LazyRows(fi, rowindices)
-end
 
 function makechunks(r::LazyRows, n::Int)
     len = length(r)
@@ -136,4 +74,22 @@ function makechunks(r::LazyRows, n::Int)
     end
     chunkindices[n] = chunkindices[n-1][2] + 1 => len 
     return chunkindices
+end
+
+function parsechunks(rows::LazyRows, nworkers::Int, structtype = nothing)
+    len = length(rows)
+    out = Vector{JSON3.Object}(undef, len)
+    chunks = LazyChunks(rows, nworkers)
+    @sync for (i, chunk) in enumerate(chunks)
+            @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
+        end
+    return out
+end
+
+function parsechunks(chunks::LazyChunks, structtype = nothing)
+    nworkers = length(chunks)
+    out = Vector{JSON3.Object}(undef, length(chunks.r))
+    @sync for (i, chunk) in enumerate(chunks)
+        @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
+    end
 end

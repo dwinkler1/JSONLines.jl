@@ -4,13 +4,19 @@ import JSON3,
     Mmap,
     Tables
 
+import Base.Threads.@spawn
+
 export readfile,
-    readchunks,
+    readlazy,
+    parserows,
+    parsechunks,
     writefile
 
-include("lazyrows.jl")
+export LazyChunks
+
 include("helpers.jl")
-include("chunks.jl")
+include("lazy.jl")
+include("file.jl")
 
 """
     readfile(file::AbstractString; kwargs...) => Vector{JSON3.Object}
@@ -38,13 +44,11 @@ function readfile(file; structtype = nothing, nrows = nothing, skip = nothing, u
     return rows
 end
 
-function readchunks(file, n; structtype = nothing, nrows = nothing, skip = nothing, usemmap::Bool = (nrows !== nothing || skip !== nothing))
-    ff = getfile(file, nrows, skip, usemmap)
-    length(ff) == 0 && return Chunks(UInt8[], Int[], 0, structtype)
-    return Chunks(ff, n, structtype)
+function readlazy(file; nrows = nothing, skip = nothing)
+    ff = getfile(file, nrows, skip, true)
+    return ff
 end
-
-
+    
 """
     writefile(file, data, mode = "w")
 
