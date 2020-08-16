@@ -1,95 +1,55 @@
-## Lazy interface and methods
-struct LazyRows
+
+import Base: iterate, length
+## Row Generator
+mutable struct LazyRows
     file::Vector{UInt8}
-    rowindices::Vector{Pair{Int, Int}}
+    filestart::Int
+    state::Int
+    length::Union{Missing, Int}
+    LazyRows(file::Vector{UInt8}, filestart::Int = 0) = new(file, filestart, filestart, missing)
 end
 
-struct LazyChunks
-    r::LazyRows
-    chunkindices::Vector{Pair{Int, Int}}
-    LazyChunks(r::LazyRows, n::Int) = new(r, makechunks(r, n))
-end
-
-import Base: iterate, getindex, length, keys
-
-Base.keys(r::LazyRows) = Base.OneTo(length(r))
-Base.keys(c::LazyChunks) = Base.OneTo(length(c))
-
-function Base.getindex(r::LazyRows, i::Int)
-    if 0 >= i > length(r)
-        throw(BoundsError(i, r))
+# Line detection 
+function detectrow(rows::LazyRows, prevrow::Int)
+    searchstart = nextind(rows.file, prevrow)
+    rowstart = findnext(isequal(_BOL), rows.file, searchstart)
+    rowend = findnext(isequal(_LSEP), rows.file, searchstart)
+    if isnothing(rowstart)
+        rowstart = lastindex(rows.file)
     end
-    @inbounds row = r.rowindices[i]
-    @inbounds return r.file[row[1]:row[2]]
-end
-
-Base.getindex(r::LazyRows, range::UnitRange{Int}) = [r[row] for row in range]
-Base.getindex(r::LazyRows, indvect::Vector{Int}) = [r[row] for row in indvect]
-Base.getindex(r::LazyRows, pair::Pair{Int, Int}) = getindex(r, pair[1]:pair[2])
-
-function Base.getindex(c::LazyChunks, i::Int)
-    if i<0 || i > length(c)
-        throw(BoundsError(i, c))
+    if isnothing(rowend)
+        rowend = lastindex(rows.file)
     end
-    @inbounds chunk = c.chunkindices[i]
-    @inbounds return c.r[chunk] 
+    return rowstart:rowend
 end
 
-function Base.iterate(r::LazyRows, i = 1)
-    if i > length(r.rowindices) || i < 0
+function Base.length(rows::LazyRows)
+    if !ismissing(rows.length)
+        return rows.length
+    else
+    count = 0
+    cur = rows.filestart
+    while !isnothing(cur) && cur != lastindex(rows.file)
+        cur = findnext(isequal(_LSEP),rows.file, cur + 1)
+        count += 1
+    end
+    rows.length = count
+    return count
+    end
+end
+
+function Base.iterate(rows::LazyRows, i = rows.state)
+    nextrow = detectrow(rows, i)
+    rows.state = last(nextrow)
+    if first(nextrow) >= last(nextrow)
         return nothing
     end
-    @inbounds row = r.rowindices[i]
-    @inbounds return (r.file[row[1]:row[2]], i + 1)
+    return (JSON3.read(rows.file[nextrow]), rows.state)
 end
 
-function Base.iterate(c::LazyChunks, i = 1)
-    if i > length(c) || i < 0
-        return nothing
-    end
-    @inbounds chunk = c.chunkindices[i]
-    @inbounds return(c.r[chunk], i + 1)
-end
+"""
+    reset!(rows::LazyRows)
 
-Base.length(r::LazyRows) = length(r.rowindices)
-Base.length(c::LazyChunks) = length(c.chunkindices)
-
-iseof(rowindex::Pair{Int, Int}, filelength) = rowindex[2] == filelength
-isrow(rowindex::Pair{Int, Int}) = rowindex[1] < rowindex[2]
-
-function makechunks(r::LazyRows, n::Int)
-    len = length(r)
-    if len == 1
-        return [1 => 1]
-    end
-    if n > len
-        n = len
-    end
-    chunksize = (len + 1) ÷ n
-    chunkindices = Vector{Pair{Int, Int}}(undef, n)
-    chunkindices[1] = 1 => chunksize
-    for i in 2:(n-1)
-        prevchunkend = chunkindices[i-1][2]
-        chunkindices[i] = (prevchunkend + 1) => (prevchunkend + chunksize)
-    end
-    chunkindices[n] = chunkindices[n-1][2] + 1 => len 
-    return chunkindices
-end
-
-function parsechunks(rows::LazyRows, nworkers::Int, structtype = nothing)
-    len = length(rows)
-    out = Vector{JSON3.Object}(undef, len)
-    chunks = LazyChunks(rows, nworkers)
-    @sync for (i, chunk) in enumerate(chunks)
-            @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
-        end
-    return out
-end
-
-function parsechunks(chunks::LazyChunks, structtype = nothing)
-    nworkers = length(chunks)
-    out = Vector{JSON3.Object}(undef, length(chunks.r))
-    @sync for (i, chunk) in enumerate(chunks)
-        @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
-    end
-end
+Reset row iterator to beginning of file
+"""
+reset!(rows::LazyRows) = (rows.state = rows.filestart; return nothing)

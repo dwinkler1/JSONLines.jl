@@ -4,7 +4,7 @@ function getfile(file, nlines, skip, usemmap)
     if usemmap
         isnothing(nlines) && (nlines = _INT_MAX)
         isnothing(skip) && (skip = 0)
-        ff = mmaplazy(file, nlines, skip)
+        ff = mmaprows(file, nlines, skip)
     else
         nlines !== nothing || skip !== nothing && @warn "nlines and skip require mmap. Returning all lines."
         ff = readstr(file)
@@ -22,7 +22,7 @@ function readstr(file)
         push!(rowindices, row)
     end
     if iseof(row, len)
-        return LazyRows(fi, rowindices)
+        return Rows(fi, rowindices)
     end
     while !iseof(row, len)
         row = detectrow(fi, rowindices[end][2])
@@ -30,18 +30,18 @@ function readstr(file)
             push!(rowindices, row)
         end
     end
-    return LazyRows(fi, rowindices)
+    return Rows(fi, rowindices)
 end
 
 # mmap file
-function mmaplazy(file, nlines, skip)
+function mmaprows(file, nlines, skip)
     fi = Mmap.mmap(file);
     len = lastindex(fi)
     rowindices = Pair{Int, Int}[]
     if skip > 0
         filestart = skiprows(fi, skip, 0)
         if filestart == len
-            return LazyRows(UInt8[], Pair{Int, Int}[])
+            return Rows(UInt8[], Pair{Int, Int}[])
         end
     else 
         filestart = 0
@@ -51,7 +51,7 @@ function mmaplazy(file, nlines, skip)
         push!(rowindices, row)
     end
     if iseof(row, len)
-        return LazyRows(fi, rowindices)
+        return Rows(fi, rowindices)
     end
     for rowi in 2:nlines
         row = detectrow(fi, rowindices[rowi-1][2])
@@ -59,8 +59,8 @@ function mmaplazy(file, nlines, skip)
             push!(rowindices, row)
         end
         if iseof(row, len)
-            return LazyRows(fi, rowindices)
+            return Rows(fi, rowindices)
         end
     end
-    return LazyRows(fi, rowindices)
+    return Rows(fi, rowindices)
 end

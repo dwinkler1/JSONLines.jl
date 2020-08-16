@@ -37,6 +37,14 @@ escaped = readfile("testfiles/escapedeol.jsonl")|> DataFrame;
     @test escaped.age[2] == "}"
 end
 
+@testset "Read lazy" begin
+    @test [x for x in readlazy("testfiles/jsonlwebsite.jsonl")] |> DataFrame == full_web
+    @test [x for x in readlazy("testfiles/mtcars.jsonl")] |> DataFrame == noprom_mtcars
+    @test [x for x in readlazy("testfiles/oneline.jsonl")] |> DataFrame== oneline
+    @test [x for x in readlazy("testfiles/oneline_plus.jsonl")]  |> DataFrame == oneline_plus
+    @test [x for x in readlazy("testfiles/escapedeol.jsonl")]  |> DataFrame == escaped
+end
+
 @testset "Mmap Full File" begin
 # full file equal
     @test readfile("testfiles/jsonlwebsite.jsonl", usemmap = true) |> DataFrame == full_web

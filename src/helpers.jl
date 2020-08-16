@@ -40,12 +40,12 @@ function parserows!(container, rows, structtype,  startidx)
     if !isnothing(structtype)
         for (i, row) in enumerate(rows)
             idx = startidx + i - 1
-            container[idx] = JSON3.read(row, structtype)
+            @inbounds container[idx] = JSON3.read(row, structtype)
         end
     else
         for (i, row) in enumerate(rows)
             idx = startidx + i - 1
-            container[idx] = JSON3.read(row)
+            @inbounds container[idx] = JSON3.read(row)
         end
     end
     return nothing
@@ -55,11 +55,11 @@ function parserows(rows, structtype = nothing)
     out = Vector{JSON3.Object}(undef, length(rows))
     if !isnothing(structtype)
         for (i, row) in enumerate(rows)
-            out[i] = JSON3.read(row, structtype)
+           @inbounds out[i] = JSON3.read(row, structtype)
         end
     else
         for (i, row) in enumerate(rows)
-            out[i] = JSON3.read(row)
+           @inbounds out[i] = JSON3.read(row)
         end
     end
     return out
