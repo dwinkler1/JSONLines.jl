@@ -5,7 +5,7 @@ const _INT_MAX = typemax(Int)
 
 # Detect space in UInt8
 import Base: isspace
-@inline isspace(i::UInt8) = 
+@inline Base.isspace(i::UInt8) = 
     i == 0x20 || 0x09 <= i <= 0x0d || i == 0x85 || i == 0xa0
 
 # Line detection 
@@ -64,6 +64,8 @@ function parserows(rows, structtype = nothing)
     end
     return out
 end
+
+JSON3.StructType(::Type{CategoricalArrays.CategoricalValue{T, M}} where {T, M}) = JSON3.StringType()
 
 ## Writing
 # Write single row

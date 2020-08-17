@@ -3,6 +3,7 @@ module JSONLines
 import JSON3, 
     Mmap,
     Tables
+import CategoricalArrays
 
 import Base.Threads.@spawn
 
@@ -10,8 +11,6 @@ export readfile,
     readlazy,
     reset!,
     writefile
-
-export Chunks
 
 include("helpers.jl")
 include("rows.jl")
@@ -79,7 +78,7 @@ Write `data` to `file` in the JSONLines format.
 function writefile(file, data, mode = "w")
 	if !Tables.istable(data)
 		throw(ArgumentError("data needs to be compatible with the Tables interface"))
-	end
+    end
 	fi = open(file, mode)
 	for row in Tables.rowtable(data)
 		writerow(fi, row)
