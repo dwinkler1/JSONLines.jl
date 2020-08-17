@@ -6,7 +6,8 @@ mutable struct LazyRows
     filestart::Int
     state::Int
     length::Union{Missing, Int}
-    LazyRows(file::Vector{UInt8}, filestart::Int = 0) = new(file, filestart, filestart, missing)
+    structtype::Union{Missing, DataType}
+    LazyRows(file::Vector{UInt8}, filestart::Int = 0, structtype = missing) = new(file, filestart, filestart, missing, structtype)
 end
 
 # Line detection 
@@ -44,7 +45,8 @@ function Base.iterate(rows::LazyRows, i = rows.state)
     if first(nextrow) >= last(nextrow)
         return nothing
     end
-    return (JSON3.read(rows.file[nextrow]), rows.state)
+    out = ismissing(rows.structtype) ? JSON3.read(rows.file[nextrow]) : JSON3.read(rows.file[nextrow], rows.structtype)
+    return (out, rows.state)
 end
 
 """

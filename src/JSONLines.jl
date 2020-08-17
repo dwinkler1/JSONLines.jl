@@ -25,7 +25,7 @@ Read (parts of) a JSONLines file.
 
 * `file`: Path to JSONLines file
 * Keyword Arguments:
-    * `structtype = nothing`: StructType passed to JSON3.read for each row of the file
+    * `structtype = nothing`: StructType passed to `JSON3.read` for each row of the file
     * `nrows = nothing`: Number of rows to load
     * `skip = nothing`: Number of rows to skip before loading
     * `usemmap::Bool = (nrows !== nothing || skip !=nothing)`: Memory map file (required for nrows and skip)
@@ -45,23 +45,25 @@ function readfile(file; structtype = nothing, nrows = nothing, skip = nothing, u
 end
 
 """
-    readlazy(file; skip = nothing) => JSONLines.LazyRows
+    readlazy(file; structtype = missing, skip = nothing) => JSONLines.LazyRows
 
 Get a lazy iterator over a JSONLines file. 
-`iterate(l::LazyRows)` returns a `Tuple` with the JSON3.Object of the current line and the index of its last element.
+`iterate(l::LazyRows)` returns a `Tuple` with the `JSON3.Object` of the current line and the index of its last element.
 A `LazyRows` object tracks its own state (which can be reset to the beginning of the file using [`reset!`](@ref)) so that it is possible to call `iterate` without additional arguments.
+To materialize all elements call `[row for row in readlazy("file.jsonl")]`. 
 
 * `file`: Path to JSONLines file
+* `structtype = missing`: StructType passed to `JSON3.read` for each row of the file
 * `skip = nothing`: Number of rows to skip at the beginning of the file
 """
-function readlazy(file; skip = nothing)
+function readlazy(file; structtype = missing, skip = nothing)
     fi = Mmap.mmap(file)
     if !isnothing(skip)
         filestart = skiprows(fi, skip)
     else
         filestart = 0
     end
-    rows = LazyRows(fi, filestart)
+    rows = LazyRows(fi, filestart, structtype)
     return rows
 end
     
