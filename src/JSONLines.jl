@@ -44,7 +44,7 @@ function readfile(file; structtype = nothing, nrows = nothing, skip = nothing, u
 end
 
 """
-    readlazy(file; structtype = missing, skip = nothing) => JSONLines.LazyRows
+    readlazy(file; structtype = nothing, skip = nothing) => JSONLines.LazyRows
 
 Get a lazy iterator over a JSONLines file. 
 `iterate(l::LazyRows)` returns a `Tuple` with the `JSON3.Object` of the current line and the index of its last element.
@@ -52,10 +52,10 @@ A `LazyRows` object tracks its own state (which can be reset to the beginning of
 To materialize all elements call `[row for row in readlazy("file.jsonl")]`. 
 
 * `file`: Path to JSONLines file
-* `structtype = missing`: StructType passed to `JSON3.read` for each row of the file
+* `structtype = nothing`: StructType passed to `JSON3.read` for each row of the file
 * `skip = nothing`: Number of rows to skip at the beginning of the file
 """
-function readlazy(file; structtype = missing, skip = nothing)
+function readlazy(file; structtype = nothing, skip = nothing)
     fi = Mmap.mmap(file)
     if !isnothing(skip)
         filestart = skiprows(fi, skip)
