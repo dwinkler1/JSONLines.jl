@@ -78,17 +78,25 @@ end
 
 function parsechunks(rows::Rows, nworkers::Int, structtype = nothing)
     len = length(rows)
-    out = Vector{JSON3.Object}(undef, len)
+    if isnothing(structtype)
+        out = Vector{JSON3.Object}(undef, len)
+    else
+        out = Vector{structtype}(undef, len)
+    end
     chunks = Chunks(rows, nworkers)
     @sync for (i, chunk) in enumerate(chunks)
-            @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
-        end
+        @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
+    end
     return out
 end
 
 function parsechunks(chunks::Chunks, structtype = nothing)
     nworkers = length(chunks)
-    out = Vector{JSON3.Object}(undef, length(chunks.r))
+    if isnothing(structtype)
+        out = Vector{JSON3.Object}(undef, length(chunks.r))
+    else
+        out = Vector{structtype}(undef, length(chunks.r))
+    end
     @sync for (i, chunk) in enumerate(chunks)
         @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
     end
