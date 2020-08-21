@@ -65,7 +65,7 @@ function Base.iterate(rows::LazyRows{:Unparsed}, i = rows.state)
 end
 
 """
-reset!(rows::LazyRows)
+    reset!(rows::LazyRows)
 
 Reset row iterator to beginning of file
 """

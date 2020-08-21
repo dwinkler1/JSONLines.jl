@@ -103,7 +103,7 @@ function parsechunks(chunks::Chunks, structtype = nothing)
 end
 
 """
-@MStructType name fieldnames...
+    @MStructType name fieldnames...
 
 This macro gives a convenient syntax for declaring mutable `StructType`s for reading specific variables from a JSONLines file
 
