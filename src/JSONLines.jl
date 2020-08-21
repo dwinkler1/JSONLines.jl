@@ -2,7 +2,8 @@ module JSONLines
 
 import JSON3, 
     Mmap,
-    Tables
+    Tables,
+    StructTypes
 import CategoricalArrays
 
 import Base.Threads.@spawn
@@ -10,7 +11,9 @@ import Base.Threads.@spawn
 export readfile,
     readlazy,
     reset!,
-    writefile
+    writefile,
+    @MStructType,
+    select
 
 include("helpers.jl")
 include("rows.jl")
@@ -44,25 +47,26 @@ function readfile(file; structtype = nothing, nrows = nothing, skip = nothing, u
 end
 
 """
-    readlazy(file; structtype = nothing, skip = nothing) => JSONLines.LazyRows
+    readlazy(file; returnparsed = true, structtype = nothing, skip = nothing) => JSONLines.LazyRows
 
 Get a lazy iterator over a JSONLines file. 
-`iterate(l::LazyRows)` returns a `Tuple` with the `JSON3.Object` of the current line and the index of its last element.
+`iterate(l::LazyRows)` returns a `Tuple` with the `JSON3.Object`, if `returnparsed = true`, or the UInt8 representation of the current line and the index of its last element.
 A `LazyRows` object tracks its own state (which can be reset to the beginning of the file using [`reset!`](@ref)) so that it is possible to call `iterate` without additional arguments.
 To materialize all elements call `[row for row in readlazy("file.jsonl")]`. 
 
 * `file`: Path to JSONLines file
+* `returnparsed = true`: If true rows are parsed to JSON3.Objects
 * `structtype = nothing`: StructType passed to `JSON3.read` for each row of the file
 * `skip = nothing`: Number of rows to skip at the beginning of the file
 """
-function readlazy(file; structtype = nothing, skip = nothing)
+function readlazy(file; returnparsed = true, structtype = nothing, skip = nothing)
     fi = Mmap.mmap(file)
     if !isnothing(skip)
         filestart = skiprows(fi, skip)
     else
         filestart = 0
     end
-    rows = LazyRows(fi, filestart, structtype)
+    returnparsed ? (rows = LazyRows{:Parsed}(fi, filestart, structtype)) : (rows = LazyRows{:Unparsed}(fi, filestart))
     return rows
 end
     

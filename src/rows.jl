@@ -101,3 +101,53 @@ function parsechunks(chunks::Chunks, structtype = nothing)
         @spawn parserows!(out, chunk, structtype, chunks.chunkindices[i][1])
     end
 end
+
+"""
+@MStructType name fieldnames...
+
+This macro gives a convenient syntax for declaring mutable `StructType`s for reading specific variables from a JSONLines file
+
+* `name`: Name of the `StructType`
+* `fieldnames...`: Names of the variables to be read (must be the same as in the file)
+
+```jldoctest
+julia> @MStructType mytype a
+
+julia> x = mytype()
+mytype(missing)
+
+julia> x.a = 1
+1
+
+julia> x
+mytype(1)
+```
+"""
+macro MStructType(name, fieldnames...)
+    quote 
+        mutable struct $name
+            $(fieldnames...)
+            $(esc(name))() = new(fill(missing, $(esc(length(fieldnames))))...)
+        end
+        StructTypes.StructType(::Type{$(esc(name))}) = StructTypes.Mutable()
+        StructTypes.names(::Type{$(esc(name))}) = tuple()
+    end
+end
+
+macro select(jsonlines, vars...)
+    name = gensym()
+    MStructType(name, vars...)
+    quote
+        len = length($jsonlines)
+        out = Vector{NamedTuple{$vars}}(undef, len)
+        for (i, row) in enumerate($jsonlines)
+            parsedrow = JSON3.read(row, $name)
+            out[i] = NamedTuple{$vars}((getfield(parsedrow, field) for field in $vars))
+        end
+        out
+    end
+end
+
+function select(jsonlines, cols...)
+    eval(:(@select $jsonlines $(cols...)))
+end
