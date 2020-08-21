@@ -1,5 +1,5 @@
 using JSONLines
-using Test, DataFrames, RDatasets, Pipe
+using Test, DataFrames, RDatasets, Pipe, Tables
 
 full_web = readfile("testfiles/jsonlwebsite.jsonl") |> DataFrame;
 nrow_fw = nrow(full_web)
@@ -43,6 +43,12 @@ end
     @test [x for x in readlazy("testfiles/oneline.jsonl")] |> DataFrame== oneline
     @test [x for x in readlazy("testfiles/oneline_plus.jsonl")]  |> DataFrame == oneline_plus
     @test [x for x in readlazy("testfiles/escapedeol.jsonl")]  |> DataFrame == escaped
+end
+
+@testset "Read arrays" begin
+    @test Tables.columntable(readarrays("testfiles/array.jsonl", namesline = 2)).a[2] == 4
+    @test Tables.columntable(readarrays("testfiles/array.jsonl", skip = 1, namesline = 2)).a[1] == 4
+    @test Tables.columntable(readarrays("testfiles/jsonlwebsitearray.jsonl")).Score == [24, 29, 14, 19]
 end
 
 @testset "select" begin
@@ -179,6 +185,7 @@ end
     @MStructType EscType name
     @test readfile("testfiles/escapedeol.jsonl", structtype = EscType) |> DataFrame == escaped[:, [:name]]
 end
+
 # Cleanup
 rm("full_web.jsonl")
 rm("full_mtcars.jsonl")

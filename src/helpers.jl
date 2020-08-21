@@ -1,6 +1,7 @@
 const _LSEP = UInt8('\n')
 const _EOL = UInt8('}')
 const _BOL = UInt8('{')
+const _ABOL = UInt8('[')
 const _INT_MAX = typemax(Int)
 
 # Detect space in UInt8
@@ -12,6 +13,19 @@ import Base: isspace
 function detectrow(file::Vector{UInt8}, prevend::Int)
     searchstart = nextind(file, prevend)
     rowstart = findnext(isequal(_BOL), file, searchstart)
+    rowend = findnext(isequal(_LSEP), file, searchstart)
+    if isnothing(rowstart)
+        rowstart = lastindex(file)
+    end
+    if isnothing(rowend)
+        rowend = lastindex(file)
+    end
+    return rowstart => rowend
+end
+
+function detectarrayrow(file::Vector{UInt8}, prevend::Int)
+    searchstart = nextind(file, prevend)
+    rowstart = findnext(isequal(_ABOL), file, searchstart)
     rowend = findnext(isequal(_LSEP), file, searchstart)
     if isnothing(rowstart)
         rowstart = lastindex(file)

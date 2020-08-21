@@ -10,6 +10,7 @@ import Base.Threads.@spawn
 
 export readfile,
     readlazy,
+    readarrays,
     reset!,
     writefile,
     @MStructType,
@@ -88,6 +89,22 @@ function writefile(file, data, mode = "w")
 		writerow(fi, row)
 	end
 	close(fi)
+end
+
+"""
+    readarrays(file; namesline = 1, nrows = nothing, skip = nothing) 
+
+Read a JSONLines file in which the rows are arrays. 
+
+* `file`: JSONLines file with JSON arrays (`[val1, val2, ...]`) as rows
+* Keyword Arguments:
+    * `namesline = 1`: Row that contains the names of the columns
+    * `nrows = nothing`: Number of rows to load
+    * `skip = nothing`: Number of rows to skip before loading
+"""
+function readarrays(file; namesline = 1, nrows = nothing, skip = nothing)
+    tups = getarrays(file, namesline, nrows, skip)
+    return tups
 end
 
 end # Module 
