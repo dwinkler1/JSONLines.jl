@@ -134,6 +134,10 @@ macro MStructType(name, fieldnames...)
     end
 end
 
+function MStructType(name, vars...)
+    eval(:(@MStructType $name $(vars...)))
+end
+
 macro select(jsonlines, vars...)
     name = gensym()
     MStructType(name, vars...)
