@@ -139,6 +139,12 @@ macro select(jsonlines, vars...)
     end
 end
 
+"""
+    select(jsonlines, cols...)
+
+* `jsonlines`: Iterator over unparsed JSONLines (e.g. readlazy("file.jsonlines", returnparsed = false))
+* `cols...`: Columnnames to be selected
+"""
 function select(jsonlines, cols...)
     eval(:(@select $jsonlines $(cols...)))
 end

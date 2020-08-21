@@ -1,5 +1,5 @@
 using JSONLines
-using Test, DataFrames, RDatasets
+using Test, DataFrames, RDatasets, Pipe
 
 full_web = readfile("testfiles/jsonlwebsite.jsonl") |> DataFrame;
 nrow_fw = nrow(full_web)
@@ -43,6 +43,19 @@ end
     @test [x for x in readlazy("testfiles/oneline.jsonl")] |> DataFrame== oneline
     @test [x for x in readlazy("testfiles/oneline_plus.jsonl")]  |> DataFrame == oneline_plus
     @test [x for x in readlazy("testfiles/escapedeol.jsonl")]  |> DataFrame == escaped
+end
+
+@testset "select" begin
+    webl = @pipe readlazy("testfiles/jsonlwebsite.jsonl", returnparsed = false) |> JSONLines.select(_, :name) |> DataFrame
+    @test webl == full_web[:, [:name]]
+    mtl = @pipe readlazy("testfiles/mtcars.jsonl", returnparsed = false) |> JSONLines.select(_, :gear, :hp) |> DataFrame
+    @test mtl == noprom_mtcars[:, [:gear, :hp]]
+    onel = @pipe readlazy("testfiles/oneline.jsonl", returnparsed = false) |> JSONLines.select(_, :age) |> DataFrame
+    @test onel == oneline[:, [:age]]
+    onepl = @pipe readlazy("testfiles/oneline_plus.jsonl", returnparsed = false) |> JSONLines.select(_, :name) |> DataFrame
+    @test onepl == oneline_plus[:, [:name]]
+    escl = @pipe readlazy("testfiles/escapedeol.jsonl", returnparsed = false) |> JSONLines.select(_, :name) |> DataFrame
+    @test escl == escaped[:, [:name]]
 end
 
 @testset "Mmap Full File" begin
@@ -160,6 +173,12 @@ writefile("escaped2.jsonl", escaped)
     @test readfile("escaped2.jsonl") |> DataFrame == escaped
 end
 
+@testset "MStructType" begin
+    @MStructType MyType hp gear drat
+    @test readfile("testfiles/mtcars.jsonl", structtype = MyType) |> DataFrame == full_mtcars[:, [:hp, :gear, :drat]]
+    @MStructType EscType name
+    @test readfile("testfiles/escapedeol.jsonl", structtype = EscType) |> DataFrame == escaped[:, [:name]]
+end
 # Cleanup
 rm("full_web.jsonl")
 rm("full_mtcars.jsonl")
