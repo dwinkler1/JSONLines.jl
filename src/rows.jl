@@ -109,19 +109,6 @@ This macro gives a convenient syntax for declaring mutable `StructType`s for rea
 
 * `name`: Name of the `StructType`
 * `fieldnames...`: Names of the variables to be read (must be the same as in the file)
-
-```jldoctest
-julia> @MStructType mytype a
-
-julia> x = mytype()
-mytype(missing)
-
-julia> x.a = 1
-1
-
-julia> x
-mytype(1)
-```
 """
 macro MStructType(name, fieldnames...)
     quote 
