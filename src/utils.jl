@@ -68,6 +68,17 @@ function indexrows(buf::T, size::Int64, nrows::Int64, start::Int64) where {T}
     return rows
 end
 
+function tindexrows(buf::T, size::Int64, nworkers::Int64) where {T}
+    parts = partitionbuf(buf, size, nworkers)
+    out = Vector{Task}(undef, nworkers)
+    for i in 1:nworkers
+        out[i] = @spawn indexrows(buf, last(parts[i]), typemax(Int), _findnexteol(buf, size, first(parts[i])+1)) 
+    end
+    ret = mapreduce(fetch, vcat, out)
+    pushfirst!(ret, 0)
+    return ret
+end
+
 function partitionbuf(buf::T, size::Int64, nworkers::Int64) where {T}
     guessize = cld(size, nworkers)
     parts = Vector{UnitRange{Int64}}(undef, nworkers)

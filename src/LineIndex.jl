@@ -14,7 +14,12 @@ end
 function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1)
     fileend = lastindex(buf)
     filestart = skip > 0 ? skiprows(buf, fileend, skip, filestart) : filestart
-    lineindex = indexrows(buf, fileend, nrows, filestart)
+    if nworkers > 1
+        # Todo issue warning about nrows 
+        lineindex = tindexrows(buf, fileend, nworkers)
+    else
+        lineindex = indexrows(buf, fileend, nrows, filestart)
+    end
     row = parserow(@inbounds(@view(buf[rowindex(lineindex, 1)])), structtype)
     rowtype = typeof(row) 
     isarray = rowtype <: JSON3.Array
