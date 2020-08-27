@@ -9,7 +9,7 @@ const _RowType = SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int64}},true}
 ## Detect space in UInt8
 import Base: isspace
 @inline Base.isspace(c::UInt8) = 
-    c == 0x20 || 0x09 <= c <= 0x0d || c == 0x85 || c == 0xa0
+c == 0x20 || 0x09 <= c <= 0x0d || c == 0x85 || c == 0xa0
 
 ## Raw row utils
 @inline _equaleol(c::UInt8) = (c == 0x0a) # 0x0a == UInt8('\n')
@@ -19,6 +19,16 @@ function _findnexteol(buf::Vector{UInt8}, size::Int64, index::Int64)
             return index
         else
             index += 1
+        end
+    end
+end
+
+function _findpreveol(buf::Vector{UInt8}, filestart::Int64, index::Int64)
+    while true
+        if _equaleol(@inbounds(buf[index])) || isequal(index, filestart) 
+            return index
+        else
+            index -= 1
         end
     end
 end
@@ -33,8 +43,7 @@ function skiprows(buf::Vector{UInt8}, size::Int64, n::Int64, from::Int64)
 end
 
 function partitionrows(nrows::Int64, nworkers::Int64)
-    partitionsize = (nrows + 1) ÷ nworkers#cld(nrows, nworkers)
-    println(partitionsize)
+    partitionsize = (nrows + 1) ÷ nworkers
     parts = Vector{UnitRange{Int64}}(undef, nworkers)
     parts[1] = 1:partitionsize
     for i in 2:(nworkers-1)
@@ -44,7 +53,7 @@ function partitionrows(nrows::Int64, nworkers::Int64)
     return parts
 end
 
-function rowindex(rows::Vector{Int64}, row::Int64)
+function rowindex(rows::T, row::Int64) where T
     return (rows[row]+1):rows[row+1]
 end
 
@@ -83,61 +92,96 @@ function parserow(row::_RowType, structtype::Nothing)
 end
 
 function parserow(row::_RowType, structtype::DataType) 
-        return JSON3.read(_eatwhitespace(row), structtype)
+    return JSON3.read(_eatwhitespace(row), structtype)
 end
 
-
-function detectrow(file::Vector{UInt8}, prevend::Int)
-    searchstart = nextind(file, prevend)
-    rowstart = findnext(isequal(_BOL), file, searchstart)
-    rowend = findnext(isequal(_LSEP), file, searchstart)
-    if isnothing(rowstart)
-        rowstart = lastindex(file)
-    end
-    if isnothing(rowend)
-        rowend = lastindex(file)
-    end
-    return rowstart => rowend
+function parserows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT, structtype, nworkers::Int) 
+   if nworkers > 1 
+       return _tparserrows(buf, rows, indices, RT, structtype, nworkers) 
+   else 
+       return _parserows(buf, rows, indices, RT, structtype)
+   end
 end
 
-
-
-
-function parserows!(container, rows, structtype,  startidx)
-    if !isnothing(structtype)
-        for (i, row) in enumerate(rows)
-            idx = startidx + i - 1
-            @inbounds container[idx] = JSON3.read(row, structtype)
-        end
-    else
-        for (i, row) in enumerate(rows)
-            idx = startidx + i - 1
-            @inbounds container[idx] = JSON3.read(row)
+function _tparserrows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT, structtype, nworkers::Int)
+    parts = partitionrows(length(indices), nworkers)
+    prows = Vector{RT}(undef, length(indices))
+    plen = length(parts[1])
+    @sync for i in 1:nworkers
+        @spawn begin
+            crows = indices[parts[i]]
+            for (j, row) in pairs(crows)
+                rindices = rowindex(rows, row)
+                prows[(i-1) * plen + j] = parserow(@inbounds(@view(buf[rindices])), structtype)
+            end
         end
     end
-    return nothing
+    return prows
 end
 
-function parserows(rows, structtype = nothing)
-    if !isnothing(structtype)
-        out = Vector{structtype}(undef, length(rows))
-        for (i, row) in enumerate(rows)
-           @inbounds out[i] = JSON3.read(row, structtype)
-        end
-    else
-        out = Vector{JSON3.Object}(undef, length(rows))
-        for (i, row) in enumerate(rows)
-           @inbounds out[i] = JSON3.read(row)
+function _parserows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT,  structtype)
+    prows = Vector{RT}(undef, length(indices))
+    for (i, row) in pairs(indices)
+        rindices = rowindex(rows, row)
+        prows[i] = parserow(@inbounds(@view(buf[rindices])), structtype)
+    end
+    return prows
+end
+
+function _tmaterialize(buf::Vector{UInt8}, rows::Vector{Int64}, indices, names,structtype, nworkers::Int)
+    parts = partitionrows(length(indices), nworkers)
+    prows = Vector{NamedTuple{names, T} where T<:Tuple}(undef, length(indices))
+    plen = length(parts[1])
+    @sync for i in 1:nworkers
+        @spawn begin
+            crows = indices[parts[i]]
+            for (j, row) in pairs(crows)
+                rindices = rowindex(rows, row)
+                row = parserow(@inbounds(@view(buf[rindices])), structtype)
+                rnames = propertynames(row)
+                prows[(i-1) * plen + j] = (;zip(rnames, [getproperty(row, n) for n in rnames])...)
+            end
         end
     end
-    return out
+    return prows
+end
+
+function _materialize(buf::Vector{UInt8}, rows::Vector{Int64}, indices, names, structtype)
+    prows = Vector{NamedTuple{names, T} where T<:Tuple}(undef, length(indices))
+    for (j, row) in pairs(indices)
+        rindices = rowindex(rows, row)
+        row = parserow(@inbounds(@view(buf[rindices])), structtype)
+        rnames = propertynames(row)
+        prows[j] = (;zip(rnames, [getproperty(row, n) for n in rnames])...)
+    end
+    return prows
+end
+
+function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int64}, indices, structtype, nworkers::Int)
+    parts = partitionrows(length(indices), nworkers)
+    prows = Vector{outtype}(undef, length(indices))
+    plen = length(parts[1])
+    @sync for i in 1:nworkers
+        @spawn begin
+            crows = indices[parts[i]]
+            for (j, row) in pairs(crows)
+                rindices = rowindex(rows, row)
+                row = parserow(@inbounds(@view(buf[rindices])), structtype)
+                prows[(i-1) * plen + j] = f(row) 
+            end
+        end
+    end
+    return prows
+end
+
+function _fmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int64}, indices, structtype)
+    prows = Vector{outtype}(undef, length(indices))
+    for (j, row) in pairs(indices)
+        rindices = rowindex(rows, row)
+        row = parserow(@inbounds(@view(buf[rindices])), structtype)
+        prows[j] = f(row) 
+    end
+    return prows
 end
 
 JSON3.StructType(::Type{CategoricalArrays.CategoricalValue{T, M}} where {T, M}) = JSON3.StringType()
-
-## Writing
-# Write single row
-function writerow(io::IO,row)
-	JSON3.write(io, row)
-	write(io, '\n')
-end
