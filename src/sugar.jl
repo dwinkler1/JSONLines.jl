@@ -15,7 +15,7 @@ quote
     end
     StructTypes.StructType(::Type{$(esc(name))}) = StructTypes.Mutable()
     StructTypes.names(::Type{$(esc(name))}) = tuple()
-    Base.getindex(x::$name, col::Symbol) = getproperty(x, col)
+    Base.getindex(x::$(esc(name)), col::Symbol) = getproperty(x, col)
 end
 end
 
@@ -24,11 +24,11 @@ eval(:(@MStructType $name $(vars...)))
 end
 
 
-macro select(path::String,  vars...)
+macro select(path::String, nworkers, vars...)
     name = gensym(basename(path))
     MStructType(name, vars...)
     quote
-       LineIndex($path, structtype = $name, nworkers = Threads.nthreads()) 
+       LineIndex($path, structtype = $name, nworkers = $nworkers)
     end
 end
 
@@ -38,6 +38,6 @@ end
 * `jsonlines`: Iterator over unparsed JSONLines (e.g. readlazy("file.jsonlines", returnparsed = false))
 * `cols...`: Columnnames to be selected
 """
-function select(path::String, cols...)
-    eval(:(@select $path $(cols...)))
+function select(path::String, cols...; nworkers = 1)
+    eval(:(@select $path $nworkers $(cols...)))
 end

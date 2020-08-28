@@ -1,17 +1,19 @@
 
-function writerows(path::String, rows; nworkers = 1, mode = "w")
+function writelines(path::String, rows; nworkers = 1, mode = "w")
     if mode ∉ ["a", "a+", "w", "w+", "r+"]
         throw(ArgumentError("Cannot open file in mode: $mode"))
     end
     if mode == "r+" && !isfile(path)
         throw(ArgumentError("File $path does not exist"))
     end
-    if !ispath(dirname(path))
+    if !ispath(dirname(abspath(path)))
         throw(ArgumentError("""opening file "$path": No such file or directory"""))
     end
     if nworkers > 1
+        rows = Tables.rowtable(rows)
         _twriterows(path, rows, nworkers, mode)
     else
+        rows = Tables.namedtupleiterator(rows)
         _writerows(path, rows, mode)
     end
 end

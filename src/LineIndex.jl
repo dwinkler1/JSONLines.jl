@@ -14,8 +14,12 @@ end
 function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1)
     fileend = lastindex(buf)
     filestart = skip > 0 ? skiprows(buf, fileend, skip, filestart) : filestart
+    if filestart == fileend 
+        @warn "Skipped all lines"
+        return LineIndex{Missing}(buf, filestart, fileend, Int[0], Symbol[], Dict{Int, Symbol}(), UnionAll, nothing, nworkers)
+    end
     if nworkers > 1
-        # Todo issue warning about nrows 
+        # Todo issue warning about nrows being ignored
         lineindex = tindexrows(buf, fileend, nworkers)
     else
         lineindex = indexrows(buf, fileend, nrows, filestart)
@@ -36,7 +40,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
     return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, structtype, nworkers) 
 end
 
-LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1) = LineIndex(Mmap.mmap(path, shared = false), filestart, skip, nrows, structtype, nworkers)
+LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1) = LineIndex(Mmap.mmap(path), filestart, skip, nrows, structtype, nworkers)
 
 ## Materialize
 function materialize(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines))
@@ -143,6 +147,8 @@ function Base.summary(lines::LineIndex)
     String(take!(io))
 end
 
+Base.show(io::IO, ::MIME"text/plain", lines::LineIndex{Missing}) = summary(io, lines)
+
 function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex)
     summary(io,lines)
     print(io, ":\n")
@@ -174,7 +180,7 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex)
         vals =  [getproperty(ll[end-halfd+i], name)  for name in propertynames(ll[end-halfd+i])]
         x[i+uphalfd-1, :] = vals
     end
-    Base.print_matrix(io, x, "  ", "  ")
+    Base.print_matrix(io, x, "    ", "\t ")
 end
 
 
@@ -194,7 +200,7 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex{T}) where T <: 
         for i in 2:length(lines)+1
             x[i, :] = lines[i-1]
         end
-        Base.print_matrix(io, x, "  ", "  ")
+        Base.print_matrix(io, x, "    ", "\t ")
         return nothing
     end
     indices = [1:uphalfd-2..., lastindex(lines) - halfd .+ collect(2:halfd)...]

@@ -5,11 +5,13 @@ struct LineIterator
     fileend::Int
     structtype::Union{Nothing, DataType}
     LineIterator(buf::Vector{UInt8}, 
-        filestart::Int = 1,
-        fileend::Int = lastindex(buf),
-        structtype::Union{Nothing, DataType} = nothing) = 
+        filestart::Int = 1,        
+        structtype::Union{Nothing, DataType} = nothing,
+        fileend::Int = lastindex(buf)) = 
         new(buf, filestart, fileend, structtype)
 end
+
+LineIterator(path::String; filestart = 1, structtype = nothing) = LineIterator(Mmap.mmap(path), filestart, structtype)
 
 ## Iteration interface
 function Base.iterate(lines::LineIterator, state::Int = lines.filestart; parse::Bool = true)

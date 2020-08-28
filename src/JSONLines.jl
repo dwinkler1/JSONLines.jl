@@ -26,7 +26,7 @@ import Tables:
     rowaccess,
     rows
     
-export writerows,
+export writelines,
     @MStructType,
     select,
     colnames,
