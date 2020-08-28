@@ -40,7 +40,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
     return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, structtype, nworkers) 
 end
 
-LineIndex(path::String; filestart::Int = 1, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1) = LineIndex(Mmap.mmap(path), filestart, skip, nrows, structtype, nworkers)
+LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1) = LineIndex(Mmap.mmap(path), filestart, skip, nrows, structtype, nworkers)
 
 ## Materialize
 function materialize(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines))
