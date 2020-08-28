@@ -5,7 +5,7 @@ const _BOL = UInt8('{')
 const _ABOL = UInt8('[')
 const _INT_MAX = typemax(Int)
 
-const _RowType = SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int64}},true}
+const _RowType = SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int}},true}
 ## Detect space in UInt8
 import Base: isspace
 @inline Base.isspace(c::UInt8) = 
@@ -13,7 +13,7 @@ c == 0x20 || 0x09 <= c <= 0x0d || c == 0x85 || c == 0xa0
 
 ## Raw row utils
 @inline _equaleol(c::UInt8) = (c == 0x0a) # 0x0a == UInt8('\n')
-function _findnexteol(buf::Vector{UInt8}, size::Int64, index::Int64)
+function _findnexteol(buf::Vector{UInt8}, size::Int, index::Int)
     while true
         if _equaleol(@inbounds(buf[index])) || isequal(index, size) 
             return index
@@ -23,7 +23,7 @@ function _findnexteol(buf::Vector{UInt8}, size::Int64, index::Int64)
     end
 end
 
-function _findpreveol(buf::Vector{UInt8}, filestart::Int64, index::Int64)
+function _findpreveol(buf::Vector{UInt8}, filestart::Int, index::Int)
     while true
         if _equaleol(@inbounds(buf[index])) || isequal(index, filestart) 
             return index
@@ -33,7 +33,7 @@ function _findpreveol(buf::Vector{UInt8}, filestart::Int64, index::Int64)
     end
 end
 
-function skiprows(buf::Vector{UInt8}, size::Int64, n::Int64, from::Int64)
+function skiprows(buf::Vector{UInt8}, size::Int, n::Int, from::Int)
     isequal(from, size) && (return size)
     for _ in 1:n
         from = _findnexteol(buf, size, from+1)
@@ -42,9 +42,9 @@ function skiprows(buf::Vector{UInt8}, size::Int64, n::Int64, from::Int64)
     return from
 end
 
-function partitionrows(nrows::Int64, nworkers::Int64)
+function partitionrows(nrows::Int, nworkers::Int)
     partitionsize = (nrows + 1) ÷ nworkers
-    parts = Vector{UnitRange{Int64}}(undef, nworkers)
+    parts = Vector{UnitRange{Int}}(undef, nworkers)
     parts[1] = 1:partitionsize
     for i in 2:(nworkers-1)
         parts[i] = (((i-1) * partitionsize)+1):(i * partitionsize)
@@ -53,12 +53,12 @@ function partitionrows(nrows::Int64, nworkers::Int64)
     return parts
 end
 
-function rowindex(rows::T, row::Int64) where T
+function rowindex(rows::T, row::Int) where T
     return (rows[row]+1):rows[row+1]
 end
 
-function indexrows(buf::T, size::Int64, nrows::Int64, start::Int64) where {T}
-    rows = Vector{Int64}(undef, 1)
+function indexrows(buf::T, size::Int, nrows::Int, start::Int) where {T}
+    rows = Vector{Int}(undef, 1)
     rows[1] = start
     for i in 1:nrows
         start = _findnexteol(buf, size, start+1)
@@ -68,7 +68,7 @@ function indexrows(buf::T, size::Int64, nrows::Int64, start::Int64) where {T}
     return rows
 end
 
-function tindexrows(buf::T, size::Int64, nworkers::Int64) where {T}
+function tindexrows(buf::T, size::Int, nworkers::Int) where {T}
     parts = partitionbuf(buf, size, nworkers)
     out = Vector{Task}(undef, nworkers)
     for i in 1:nworkers
@@ -79,9 +79,9 @@ function tindexrows(buf::T, size::Int64, nworkers::Int64) where {T}
     return ret
 end
 
-function partitionbuf(buf::T, size::Int64, nworkers::Int64) where {T}
+function partitionbuf(buf::T, size::Int, nworkers::Int) where {T}
     guessize = cld(size, nworkers)
-    parts = Vector{UnitRange{Int64}}(undef, nworkers)
+    parts = Vector{UnitRange{Int}}(undef, nworkers)
     parts[1] = 1:_findnexteol(buf, size, guessize)
     for i in 2:(nworkers - 1)
         parts[i] = (last(parts[i-1])):_findnexteol(buf, size, (i * guessize))
@@ -106,7 +106,7 @@ function parserow(row::_RowType, structtype::DataType)
     return JSON3.read(_eatwhitespace(row), structtype)
 end
 
-function parserows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT, structtype, nworkers::Int) 
+function parserows(buf::Vector{UInt8}, rows::Vector{Int}, indices, RT, structtype, nworkers::Int) 
    if nworkers > 1 
        return _tparserrows(buf, rows, indices, RT, structtype, nworkers) 
    else 
@@ -114,7 +114,7 @@ function parserows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT, structt
    end
 end
 
-function _tparserrows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT, structtype, nworkers::Int)
+function _tparserrows(buf::Vector{UInt8}, rows::Vector{Int}, indices, RT, structtype, nworkers::Int)
     parts = partitionrows(length(indices), nworkers)
     prows = Vector{RT}(undef, length(indices))
     plen = length(parts[1])
@@ -130,7 +130,7 @@ function _tparserrows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT, stru
     return prows
 end
 
-function _parserows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT,  structtype)
+function _parserows(buf::Vector{UInt8}, rows::Vector{Int}, indices, RT,  structtype)
     prows = Vector{RT}(undef, length(indices))
     for (i, row) in pairs(indices)
         rindices = rowindex(rows, row)
@@ -139,7 +139,7 @@ function _parserows(buf::Vector{UInt8}, rows::Vector{Int64}, indices, RT,  struc
     return prows
 end
 
-function _tmaterialize(buf::Vector{UInt8}, rows::Vector{Int64}, indices, names,structtype, nworkers::Int)
+function _tmaterialize(buf::Vector{UInt8}, rows::Vector{Int}, indices, names,structtype, nworkers::Int)
     parts = partitionrows(length(indices), nworkers)
     prows = Vector{NamedTuple{names, T} where T<:Tuple}(undef, length(indices))
     plen = length(parts[1])
@@ -157,7 +157,7 @@ function _tmaterialize(buf::Vector{UInt8}, rows::Vector{Int64}, indices, names,s
     return prows
 end
 
-function _materialize(buf::Vector{UInt8}, rows::Vector{Int64}, indices, names, structtype)
+function _materialize(buf::Vector{UInt8}, rows::Vector{Int}, indices, names, structtype)
     prows = Vector{NamedTuple{names, T} where T<:Tuple}(undef, length(indices))
     for (j, row) in pairs(indices)
         rindices = rowindex(rows, row)
@@ -168,7 +168,7 @@ function _materialize(buf::Vector{UInt8}, rows::Vector{Int64}, indices, names, s
     return prows
 end
 
-function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int64}, indices, structtype, nworkers::Int)
+function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int}, indices, structtype, nworkers::Int)
     parts = partitionrows(length(indices), nworkers)
     prows = Vector{outtype}(undef, length(indices))
     plen = length(parts[1])
@@ -185,7 +185,7 @@ function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{I
     return prows
 end
 
-function _fmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int64}, indices, structtype)
+function _fmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int}, indices, structtype)
     prows = Vector{outtype}(undef, length(indices))
     for (j, row) in pairs(indices)
         rindices = rowindex(rows, row)
