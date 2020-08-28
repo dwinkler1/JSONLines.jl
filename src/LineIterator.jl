@@ -11,7 +11,7 @@ struct LineIterator
         new(buf, filestart, fileend, structtype)
 end
 
-LineIterator(path::String; filestart = 0, structtype = nothing) = LineIterator(Mmap.mmap(path), filestart, structtype)
+LineIterator(path::String; filestart = 1, structtype = nothing) = LineIterator(Mmap.mmap(path), filestart, structtype)
 
 ## Iteration interface
 function Base.iterate(lines::LineIterator, state::Int = lines.filestart; parse::Bool = true)
