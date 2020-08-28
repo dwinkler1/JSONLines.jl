@@ -28,7 +28,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
     rowtype = typeof(row) 
     isarray = rowtype <: JSON3.Array
     if isarray
-        rowtype = JSON3.Array{T, SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int}},true},Array{UInt,1}} where T
+        rowtype = JSON3.Array{T, SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int}},true},Array{UInt64,1}} where T
         names = Symbol.(row)
         lineindex = lineindex[2:end]
         row = parserow(@inbounds(@view(buf[rowindex(lineindex, 1)])), structtype)
