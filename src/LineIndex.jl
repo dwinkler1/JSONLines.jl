@@ -113,13 +113,31 @@ function settype!(lines::LineIndex, type::Pair{Symbol, DataType})
 end
 
 ## Filter
-function Base.filter(f, lines::LineIndex)
+function Base.filter(f::Function, lines::LineIndex)
     if lines.nworkers > 1
         return _tfilter(lines.buf, f, lines.rowtype, lines.lineindex, lines.structtype, lines.nworkers)
     else
         return _filter(lines.buf, f, lines.rowtype, lines.lineindex, lines.structtype)
     end
 end
+
+## Find
+function Base.findall(f::Function, lines::LineIndex)
+    # todo threaded
+    return _findall(lines, f)
+end
+
+function Base.findnext(f::Function, lines::LineIndex, i::Int)
+    return _findnext(lines, f, i)
+end
+
+function Base.findprev(f::Function, lines::LineIndex, i::Int)
+    return _findprev(lines, f, i)
+end
+
+Base.findfirst(f::Function, lines::LineIndex) = _findnext(lines, f, 1)
+
+Base.findlast(f::Function, lines::LineIndex) = _findprev(lines, f, length(lines))
 
 ## Iteration interface
 function Base.iterate(lines::LineIndex, state::Int = 1; parsed::Bool = true)

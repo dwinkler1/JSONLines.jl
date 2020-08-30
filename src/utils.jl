@@ -178,6 +178,29 @@ function _filter(buf::Vector{UInt8}, f, rowtype, lineindex::Vector{Int}, structt
     return prows
 end
 
+function _findall(lines::LineIndex, f)
+    inds = Int[]
+    for (i, row) in enumerate(lines)
+        f(row) && push!(inds, i)
+    end
+    return inds
+end
+
+function _findnext(lines, f, i)
+    len = length(lines)
+    while !f(@inbounds(lines[i])) && i < len
+        i += 1
+    end
+    return f(@inbounds(lines[i])) ? i : nothing
+end
+
+function _findprev(lines, f, i)
+    while !f(@inbounds(lines[i])) && i > 1
+        i -=1
+    end
+    return f(@inbounds(lines[i])) ? i : nothing
+end
+
 function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int}, indices, structtype, nworkers::Int)
     parts = partitionrows(length(indices), nworkers)
     prows = Vector{outtype}(undef, length(indices))

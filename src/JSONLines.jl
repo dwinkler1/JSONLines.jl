@@ -20,7 +20,12 @@ import Base:
     IndexStyle,
     checkbounds,
     summary,
-    filter
+    filter,
+    findall,
+    findnext,
+    findfirst,
+    findprev,
+    findlast
 
 import Tables:
     istable,
@@ -39,7 +44,12 @@ export writelines,
     gettypes!,
     settype!,
     columntypes,
-    filter
+    filter,
+    findall,
+    findnext,
+    findfirst,
+    findprev,
+    findlast
 
 include("utils.jl")
 include("LineIterator.jl")
