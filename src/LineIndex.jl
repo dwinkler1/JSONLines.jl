@@ -7,11 +7,12 @@ struct LineIndex{T}
     names::Vector{Symbol}
     lookup::Union{Dict{Int, Symbol}, Dict{Symbol, Int}}
     rowtype::Union{DataType, UnionAll}
+    columntypes::Dict{Symbol, DataType}
     structtype::Union{Nothing, DataType}
     nworkers::Int
 end
 
-function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1)
+function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, schemafrom = 1:10, nworkers::Int = 1)
     fileend = lastindex(buf)
     filestart = skip > 0 ? skiprows(buf, fileend, skip, filestart) : filestart
     if filestart == fileend 
@@ -33,14 +34,33 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
         lineindex = lineindex[2:end]
         row = parserow(@inbounds(@view(buf[rowindex(lineindex, 1)])), structtype)
         lookup = Dict(names .=> 1:length(names))
+        typelookup = Dict{Symbol, DataType}() # TODO Implement checking
     else
-        names = [propertynames(row)...]
-        lookup = Dict(1:length(names) .=> names)
+        typelookup = Dict{Symbol, DataType}()
+        lookup = Dict{Int, Symbol}()
+        checkrows = (length(lineindex)-1) > last(schemafrom) ? schemafrom : first(schemafrom):lastindex(lineindex)
+        names = Symbol[]
+        for i in checkrows # todo make input
+            crow = parserow(@inbounds(@view(buf[rowindex(lineindex, i)])), structtype)
+            colindex = 0
+            for (k, v) in crow
+                colindex += 1
+                if haskey(typelookup, k)
+                    typelookup[k] = promote_type(typelookup[k], typeof(v))
+                else
+                    push!(names, k)
+                    lookup[colindex] = k
+                    typelookup[k] = typeof(v)
+                end
+            end
+        end
+       # names = collect(keys(typelookup))
+#        lookup = Dict(1:length(names) .=> names)
     end
-    return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, structtype, nworkers) 
+    return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, typelookup, structtype, nworkers) 
 end
 
-LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, nworkers::Int = 1) = LineIndex(Mmap.mmap(path), filestart, skip, nrows, structtype, nworkers)
+LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, schemafrom::UnitRange{Int} = 1:10, nworkers::Int = 1) = LineIndex(Mmap.mmap(path), filestart, skip, nrows, structtype, schemafrom, nworkers)
 
 ## Materialize
 function materialize(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines))
@@ -58,6 +78,49 @@ function materialize(lines::LineIndex,  f::Function, rows::Union{UnitRange{Int},
         return _fmaterialize(lines.buf, f, eltype, lines.lineindex, rows, lines.structtype)
     end
 end
+
+## Columnwise
+function columnwise(lines::LineIndex; coltypes = lines.columntypes)
+    _columnwise(lines, coltypes)
+end
+
+function gettypes(lines::LineIndex, rows = 1:5)
+    vals = lines[rows]
+    lookup = Dict{Symbol, DataType}()
+    for row in vals
+        for (k, v) in row
+            if haskey(lookup, k)
+                lookup[k] = promote_type(lookup[k], typeof(v))
+            else
+                lookup[k] = typeof(v)
+            end
+        end
+    end
+    return lookup
+end
+
+function gettypes!(lines::LineIndex, rows = 1:5)
+    newtypes = gettypes(lines, rows)
+    for (k, v) in newtypes
+        lines.columntypes[k] = v
+    end
+end
+
+columntypes(lines::LineIndex) = lines.columntypes
+
+function settype!(lines::LineIndex, type::Pair{Symbol, DataType}) 
+    lines.columntypes[type[1]] = type[2]
+end
+
+## Filter
+function Base.filter(f, lines::LineIndex)
+    if lines.nworkers > 1
+        return _tfilter(lines.buf, f, lines.rowtype, lines.lineindex, lines.structtype, lines.nworkers)
+    else
+        return _filter(lines.buf, f, lines.rowtype, lines.lineindex, lines.structtype)
+    end
+end
+
 ## Iteration interface
 function Base.iterate(lines::LineIndex, state::Int = 1; parsed::Bool = true)
     state > length(lines) && (return nothing)
@@ -131,6 +194,13 @@ end
 Base.getindex(lines::LineIndex, r::Vector{Int}, i::Int) = getindex(lines, r, lines.lookup[i])
 Base.getindex(lines::LineIndex{T}, r::Vector{Int}, col::Int) where T <: JSON3.Array = [l[col] for l in getindex(lines, r)]
 
+## Colon, Symbol 
+Base.getindex(lines::LineIndex, c::Colon, col::Symbol) = lines[1:end, col]
+
+## Symbol
+Base.getindex(lines::LineIndex, col::Symbol) = lines[:, col]
+
+## 
 Base.IndexStyle(::Type{LineIndex{T}}) where T = Base.IndexLinear() 
 Base.firstindex(lines::LineIndex) = 1
 Base.lastindex(lines::LineIndex) = length(lines)
@@ -141,6 +211,8 @@ function Base.summary(io::IO, lines::LineIndex)
     print(io, Base.dims2string(size(lines)), " ")
     Base.showarg(io, lines, true)
 end
+
+## Show
 function Base.summary(lines::LineIndex) 
     io = IOBuffer()
     summary(io, lines)
@@ -224,4 +296,5 @@ colnames(lines::LineIndex) = lines.names
 
 Tables.isrowtable(lines::LineIndex) = true
 Tables.rowtable(lines::LineIndex) = Tables.rowtable(materialize(lines))
+Tables.columntable(lines::LineIndex) = Tables.columntable(columnwise(lines))
 #Tables.getcolumn(row::JSON3.Object, ::Type{T}, i::Int, nm::Symbol) where T = T(row[nm])

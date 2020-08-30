@@ -54,7 +54,7 @@ function partitionrows(nrows::Int, nworkers::Int)
 end
 
 function rowindex(rows::T, row::Int) where T
-    return (rows[row]+1):rows[row+1]
+    return @inbounds((rows[row]+1):rows[row+1])
 end
 
 function indexrows(buf::T, size::Int, nrows::Int, start::Int) where {T}
@@ -74,7 +74,7 @@ function tindexrows(buf::T, size::Int, nworkers::Int) where {T}
     for i in 1:nworkers
         out[i] = @spawn indexrows(buf, last(parts[i]), typemax(Int), _findnexteol(buf, size, first(parts[i])+1)) 
     end
-    ret = mapreduce(fetch, vcat, out)
+    ret = mapfoldl(fetch, vcat, out)
     pushfirst!(ret, 0)
     return ret
 end
@@ -139,7 +139,7 @@ function _parserows(buf::Vector{UInt8}, rows::Vector{Int}, indices, RT,  structt
     return prows
 end
 
-function _tmaterialize(buf::Vector{UInt8}, rows::Vector{Int}, indices, names,structtype, nworkers::Int)
+function _tmaterialize(buf::Vector{UInt8}, rows::Vector{Int}, indices, names, structtype, nworkers::Int)
     parts = partitionrows(length(indices), nworkers)
     prows = Vector{NamedTuple{names, T} where T<:Tuple}(undef, length(indices))
     plen = length(parts[1])
@@ -168,6 +168,16 @@ function _materialize(buf::Vector{UInt8}, rows::Vector{Int}, indices, names, str
     return prows
 end
 
+function _filter(buf::Vector{UInt8}, f, rowtype, lineindex::Vector{Int}, structtype)
+    prows = Vector{rowtype}(undef, 0)
+    for row in 1:length(lineindex)-1
+        rindices = rowindex(lineindex, row)
+        row = parserow(@inbounds(@view(buf[rindices])), structtype)
+        f(row) && push!(prows, row)
+    end
+    return prows
+end
+
 function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int}, indices, structtype, nworkers::Int)
     parts = partitionrows(length(indices), nworkers)
     prows = Vector{outtype}(undef, length(indices))
@@ -185,6 +195,21 @@ function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{I
     return prows
 end
 
+function _tfilter(buf::Vector{UInt8}, f, rowtype, lineindex::Vector{Int}, structtype, nworkers::Int)
+    parts = partitionrows(length(lineindex)-1, nworkers)
+    rowbuf = [rowtype[] for _ in 1:nworkers]    
+    @sync for i in 1:nworkers
+        @spawn begin
+            for row in parts[i]
+                rindices = rowindex(lineindex, row)
+                row = parserow(@inbounds(@view(buf[rindices])), structtype)
+                f(row) && push!(rowbuf[i], row)
+            end
+        end
+    end
+    return foldl(vcat, rowbuf)
+end
+
 function _fmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{Int}, indices, structtype)
     prows = Vector{outtype}(undef, length(indices))
     for (j, row) in pairs(indices)
@@ -194,5 +219,54 @@ function _fmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{In
     end
     return prows
 end
+
+function _columnwise(lines, coltypes)
+    lookup = Dict{Symbol, Int}()
+    columns = Vector{AbstractVector}(undef, 0)
+    ncols = 0
+    # Allocate known columns    
+    if !isnothing(coltypes)
+        for (k, v) in coltypes
+            ncols += 1
+            lookup[k] = ncols
+            push!(columns, Vector{v}(undef,length(lines))) 
+        end # for
+    end # if
+    # Add rows
+    for (i, row) in enumerate(lines)
+        rnames = propertynames(row)
+        # Add columns
+        for name in rnames
+            # Known columns
+            if haskey(lookup, name)
+                columns[lookup[name]][i] = row[name]
+            # Unknonw columns
+            else
+                ncols += 1
+                push!(columns, Vector{Union{Missing, Any}}(undef, length(lines)))
+                @inbounds columns[ncols][1:(i-1)] .= missing
+                lookup[name] = ncols
+                columns[ncols][i] = row[name]
+            end # if 
+        end # for rnames
+        # Missing in current row
+        mnames = filter(x -> x ∉ rnames, collect(keys(lookup)))
+        for name in mnames
+           columns[lookup[name]][i] = missing
+        end # for mnames
+    end # for lines
+    fcolnames = collect(keys(lookup))
+    if !isnothing(coltypes)
+        untyped = filter(x -> x ∉ collect(keys(coltypes)), fcolnames)
+    else
+        untyped = fcolnames
+    end
+    for col in untyped
+        columns[lookup[col]] = [promote(columns[lookup[col]]...)...]
+    end
+    return (;zip(fcolnames, columns)...)
+end # fun
+
+
 
 JSON3.StructType(::Type{CategoricalArrays.CategoricalValue{T, M}} where {T, M}) = JSON3.StringType()

@@ -19,7 +19,8 @@ import Base:
     lastindex,
     IndexStyle,
     checkbounds,
-    summary
+    summary,
+    filter
 
 import Tables:
     istable,
@@ -32,7 +33,13 @@ export writelines,
     colnames,
     LineIndex,
     LineIterator,
-    materialize
+    materialize,
+    columnwise,
+    gettypes,
+    gettypes!,
+    settype!,
+    columntypes,
+    filter
 
 include("utils.jl")
 include("LineIterator.jl")
