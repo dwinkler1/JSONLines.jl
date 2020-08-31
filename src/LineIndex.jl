@@ -62,17 +62,40 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
     return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, typelookup, structtype, nworkers) 
 end
 
+
+"""
+    LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, schemafrom::UnitRange{Int} = 1:10, nworkers::Int = 1)
+
+Create an index of a JSONLines file at `path`
+* Keyword Arguments:
+    * `filestart=0`: Number of bytes to skip before reading the file
+    * `skip=0`: Number of rows to skip before parsing
+    * `nrows=typemax(Int)`: Maximum number of rows to index
+    * `structtype=nothing`: `StructType` passed to `JSON3.read` for each row
+    * `schemafrom=1:10`: Rows to parse initially to determine columnnames and columntypes
+    * `nworkers=1`: Number of threads to use for operations on the `LineIndex`
+"""
 LineIndex(path::String; filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, schemafrom::UnitRange{Int} = 1:10, nworkers::Int = 1) = LineIndex(Mmap.mmap(path), filestart, skip, nrows, structtype, schemafrom, nworkers)
 
 ## Materialize
+"""
+    materialize(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines))
+
+Return a `Vector{NamedTuple}` of the `rows` selected. Similar to `Tables.rowtable`
+"""
 function materialize(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines))
     if lines.nworkers > 1
-        return _tmaterialize(lines.buf, lines.lineindex, rows, tuple(colnames(lines)...), lines.structtype, lines.nworkers)
+        return _tmaterialize(lines.buf, lines.lineindex, rows, tuple(columnnames(lines)...), lines.structtype, lines.nworkers)
     else
-        return _materialize(lines.buf, lines.lineindex, rows, tuple(colnames(lines)...), lines.structtype)
+        return _materialize(lines.buf, lines.lineindex, rows, tuple(columnnames(lines)...), lines.structtype)
     end
 end
 
+"""
+    materialize(lines::LineIndex,  f::Function, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines); eltype = T where T)
+
+Apply `f` to `rows` selected. `eltype` of result can be specified as keyword argument.
+"""
 function materialize(lines::LineIndex,  f::Function, rows::Union{UnitRange{Int}, Vector{Int}} = 1:length(lines); eltype = T where T)
     if lines.nworkers > 1
         return _ftmaterialize(lines.buf, f, eltype, lines.lineindex, rows, lines.structtype, lines.nworkers)
@@ -82,10 +105,20 @@ function materialize(lines::LineIndex,  f::Function, rows::Union{UnitRange{Int},
 end
 
 ## Columnwise
+"""
+    columnwise(lines::LineIndex; coltypes = lines.columntypes)
+
+Parse `lines` to columnwise vectors. Similar to `Tables.columntable`
+"""
 function columnwise(lines::LineIndex; coltypes = lines.columntypes)
     _columnwise(lines, coltypes)
 end
 
+"""
+    gettypes(lines::LineIndex, rows = 1:5)
+
+Infer types of columns in `lines` based on `rows` selected. Returns `Dict` of types.
+"""
 function gettypes(lines::LineIndex, rows = 1:5)
     vals = lines[rows]
     lookup = Dict{Symbol, DataType}()
@@ -103,6 +136,11 @@ function gettypes(lines::LineIndex, rows = 1:5)
     return lookup
 end
 
+"""
+    settypes!(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:5)
+
+Infer types of columns in `lines` based on `rows` selected. Overwrites existing types.
+"""
 function settypes!(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:5)
     newtypes = gettypes(lines, rows)
     for (k, v) in newtypes
@@ -110,12 +148,27 @@ function settypes!(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 
     end
 end
 
+"""
+    columntypes(lines::LineIndex)
+
+Returns current value of columntypes of lines.
+"""
 columntypes(lines::LineIndex) = lines.columntypes
 
+"""
+    settype!(lines::LineIndex, p::Union{Pair{Symbol, DataType},Pair{Symbol, UnionAll}, Pair{Symbol, Union}})
+
+Set a single columntype using `:col => Type`.
+"""
 function settype!(lines::LineIndex, p::Union{Pair{Symbol, DataType},Pair{Symbol, UnionAll}, Pair{Symbol, Union}}) 
     lines.columntypes[p[1]] = p[2]
 end
 
+"""
+    settypes!(lines::LineIndex, d::Union{Dict{Symbol, DataType}, Dict{Symbol, UnionAll}, Dict{Symbol, Union}})
+
+Manually set types for columns. `d` is a `Dict` in which keys are `Symbol`s corresponding to columnnames and values are the datatypes.
+"""
 function settypes!(lines::LineIndex, d::Union{Dict{Symbol, DataType}, Dict{Symbol, UnionAll}, Dict{Symbol, Union}})
     for (k, v) in d
         settype!(lines, k => v)
@@ -123,6 +176,11 @@ function settypes!(lines::LineIndex, d::Union{Dict{Symbol, DataType}, Dict{Symbo
 end 
 
 ## Filter
+"""
+    filter(f::Function, lines::LineIndex)
+
+Return rows of `lines` for which `f` evaluates to `true`
+"""
 function Base.filter(f::Function, lines::LineIndex)
     if lines.nworkers > 1
         return _tfilter(lines.buf, f, lines.rowtype, lines.lineindex, lines.structtype, lines.nworkers)
@@ -132,21 +190,46 @@ function Base.filter(f::Function, lines::LineIndex)
 end
 
 ## Find
+"""
+    findall(f::Function, lines::LineIndex)
+
+Return indices of `lines` for which `f` evaluates to `true`
+"""
 function Base.findall(f::Function, lines::LineIndex)
     # todo threaded
     return _findall(lines, f)
 end
 
+"""
+    findnext(f::Function, lines::LineIndex, i::Int)
+
+Return index of next row for which `f` returns `true` starting at row `i`
+"""
 function Base.findnext(f::Function, lines::LineIndex, i::Int)
     return _findnext(lines, f, i)
 end
 
+"""
+    findnext(f::Function, lines::LineIndex, i::Int)
+
+Return index of previous row for which `f` returns `true` starting at row `i`
+"""
 function Base.findprev(f::Function, lines::LineIndex, i::Int)
     return _findprev(lines, f, i)
 end
 
+"""
+    findfirst(f::Function, lines::LineIndex)
+
+Return index of first row for which `f` returns `true`
+"""
 Base.findfirst(f::Function, lines::LineIndex) = _findnext(lines, f, 1)
 
+"""
+    findlast(f::Function, lines::LineIndex)
+
+Return index of last row for which `f` returns `true`
+"""
 Base.findlast(f::Function, lines::LineIndex) = _findprev(lines, f, length(lines))
 
 ## Iteration interface
@@ -167,7 +250,7 @@ end
 Base.IteratorSize(::Type{LineIndex}) = Base.HasLength()
 
 ## Indexing  interface
-Base.size(lines::LineIndex) = (length(lines), length(colnames(lines)))
+Base.size(lines::LineIndex) = (length(lines), length(columnnames(lines)))
 
 @inline function Base.getindex(lines::LineIndex, i::Int; parsed::Bool = true)
     @boundscheck checkbounds(lines, i)
@@ -259,7 +342,7 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex)
     end
     if length(lines) <= scrsz
         x = Matrix(undef, length(lines) + 1, size(lines)[2])
-        x[1, :] = colnames(lines)
+        x[1, :] = columnnames(lines)
         for i in 2:length(lines)+1
             x[i, :] = [getproperty(lines[i-1], name) for name in propertynames(lines[i-1])]
         end
@@ -271,7 +354,7 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex)
     indices = [1:uphalfd-2..., lastindex(lines) - halfd .+ collect(2:halfd)...]
     ll = lines[indices]
     x = Matrix(undef, scrsz-1, size(lines)[2])
-    x[1, :] = colnames(lines)
+    x[1, :] = columnnames(lines)
     for i in 2:(uphalfd-1)
         vals = [getproperty(ll[i-1], name) for name in propertynames(ll[i-1])]
         x[i, :] = vals
@@ -296,7 +379,7 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex{T}) where T <: 
     uphalfd = scrsz - halfd
     if length(lines) <= scrsz
         x = Matrix(undef, length(lines) + 1, size(lines)[2])
-        x[1, :] = colnames(lines)
+        x[1, :] = columnnames(lines)
         for i in 2:length(lines)+1
             x[i, :] = lines[i-1]
         end
@@ -306,7 +389,7 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex{T}) where T <: 
     indices = [1:uphalfd-2..., lastindex(lines) - halfd .+ collect(2:halfd)...]
     ll = lines[indices]
     x = Matrix(undef, scrsz-1, size(lines)[2])
-    x[1, :] = colnames(lines)
+    x[1, :] = columnnames(lines)
     for i in 2:(uphalfd-1)
         vals = ll[i-1]
         x[i, :] = vals
@@ -318,7 +401,12 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex{T}) where T <: 
     Base.print_matrix(io, x, "  ", "  ")
 end
 
-colnames(lines::LineIndex) = lines.names
+"""
+    columnnames(lines::LineIndex)
+
+Returns the columnnames of the LineIndex
+"""
+columnnames(lines::LineIndex) = lines.names
 
 ## Tables.jl interface
 

@@ -35,7 +35,7 @@ import Tables:
 export writelines,
     @MStructType,
     select,
-    colnames,
+    columnnames,
     LineIndex,
     LineIterator,
     materialize,

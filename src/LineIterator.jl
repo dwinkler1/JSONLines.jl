@@ -11,6 +11,16 @@ struct LineIterator
         new(buf, filestart, fileend, structtype)
 end
 
+"""
+    LineIterator(path::String; filestart = 1, structtype = nothing)
+
+
+Create an iterator of a JSONLines file at `path`.
+
+* Keyword Arguments:
+    * `filestart=1`: Row at which to start the iterator
+    * `structtype=nothing`: StructType passed to `JSON3.read` for each row
+"""
 LineIterator(path::String; filestart = 1, structtype = nothing) = LineIterator(Mmap.mmap(path), filestart, structtype)
 
 ## Iteration interface
@@ -60,4 +70,4 @@ end
 Tables.istable(lines::LineIterator) = true
 Tables.rowaccess(lines::LineIterator) = true
 Tables.rows(lines::LineIterator) = lines
-Tables.materializer(lines::LineIterator) = Tables.rowtable
+#Tables.materializer(lines::LineIterator) = Tables.rowtable

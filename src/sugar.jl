@@ -2,7 +2,7 @@
 """
 @MStructType name fieldnames...
 
-This macro gives a convenient syntax for declaring mutable `StructType`s for reading specific variables from a JSONLines file
+This macro gives a convenient syntax for declaring mutable `StructType`s for reading specific variables from a JSONLines file. Also defines `row[:col]` access for rows of the resulting type.
 
 * `name`: Name of the `StructType`
 * `fieldnames...`: Names of the variables to be read (must be the same as in the file)
@@ -33,10 +33,12 @@ macro select(path::String, nworkers, vars...)
 end
 
 """
-    select(jsonlines, cols...)
+    select(jsonlines, cols...) => LineIndex
 
 * `jsonlines`: Iterator over unparsed JSONLines (e.g. readlazy("file.jsonlines", returnparsed = false))
 * `cols...`: Columnnames to be selected
+* Keyword Argument:
+    * `nworkers=1`: Number of threads to use for operations on the resulting LineIndex
 """
 function select(path::String, cols...; nworkers = 1)
     eval(:(@select $path $nworkers $(cols...)))
