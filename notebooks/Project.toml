@@ -1,0 +1,6 @@
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
+JSONLines = "24c2b838-1c8b-4567-aca0-d45e60436bb9"
+OnlineStats = "a15396b6-48d5-5d58-9928-6d29437db91e"
+VegaDatasets = "0ae4a718-28b7-58ec-9efb-cded64d6d5b4"
