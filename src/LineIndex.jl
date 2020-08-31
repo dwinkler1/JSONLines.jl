@@ -7,7 +7,7 @@ struct LineIndex{T}
     names::Vector{Symbol}
     lookup::Union{Dict{Int, Symbol}, Dict{Symbol, Int}}
     rowtype::Union{DataType, UnionAll}
-    columntypes::Dict{Symbol, DataType}
+    columntypes::Dict{Symbol, Union{DataType, UnionAll, Union}}
     structtype::Union{Nothing, DataType}
     nworkers::Int
 end
@@ -17,7 +17,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
     filestart = skip > 0 ? skiprows(buf, fileend, skip, filestart) : filestart
     if filestart == fileend 
         @warn "Skipped all lines"
-        return LineIndex{Missing}(buf, filestart, fileend, Int[0], Symbol[], Dict{Int, Symbol}(), UnionAll, nothing, nworkers)
+        return LineIndex{Missing}(buf, filestart, fileend, Int[0], Symbol[], Dict{Int, Symbol}(),  UnionAll, Dict{Symbol, Union{DataType, UnionAll}}(), nothing, nworkers)
     end
     if nworkers > 1
         # Todo issue warning about nrows being ignored
@@ -36,14 +36,16 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
         lookup = Dict(names .=> 1:length(names))
         typelookup = Dict{Symbol, DataType}() # TODO Implement checking
     else
-        typelookup = Dict{Symbol, DataType}()
+        typelookup = Dict{Symbol, Union{DataType, UnionAll}}()
         lookup = Dict{Int, Symbol}()
-        checkrows = (length(lineindex)-1) > last(schemafrom) ? schemafrom : first(schemafrom):lastindex(lineindex)
+        checkrows = (length(lineindex)-1) > last(schemafrom) ? schemafrom : first(schemafrom):(length(lineindex)-1)
         names = Symbol[]
         for i in checkrows # todo make input
             crow = parserow(@inbounds(@view(buf[rowindex(lineindex, i)])), structtype)
             colindex = 0
-            for (k, v) in crow
+            cnames = propertynames(crow)
+            cvals = [getproperty(crow, name) for name in cnames]
+            for (k, v) in zip(cnames, cvals)
                 colindex += 1
                 if haskey(typelookup, k)
                     typelookup[k] = promote_type(typelookup[k], typeof(v))
@@ -88,7 +90,9 @@ function gettypes(lines::LineIndex, rows = 1:5)
     vals = lines[rows]
     lookup = Dict{Symbol, DataType}()
     for row in vals
-        for (k, v) in row
+        cnames = propertynames(row)
+        cvals = [getproperty(row, name) for name in cnames]
+        for (k, v) in zip(cnames, cvals)
             if haskey(lookup, k)
                 lookup[k] = promote_type(lookup[k], typeof(v))
             else
@@ -99,7 +103,7 @@ function gettypes(lines::LineIndex, rows = 1:5)
     return lookup
 end
 
-function gettypes!(lines::LineIndex, rows = 1:5)
+function settypes!(lines::LineIndex, rows::Union{UnitRange{Int}, Vector{Int}} = 1:5)
     newtypes = gettypes(lines, rows)
     for (k, v) in newtypes
         lines.columntypes[k] = v
@@ -108,9 +112,15 @@ end
 
 columntypes(lines::LineIndex) = lines.columntypes
 
-function settype!(lines::LineIndex, type::Pair{Symbol, DataType}) 
-    lines.columntypes[type[1]] = type[2]
+function settype!(lines::LineIndex, p::Union{Pair{Symbol, DataType},Pair{Symbol, UnionAll}, Pair{Symbol, Union}}) 
+    lines.columntypes[p[1]] = p[2]
 end
+
+function settypes!(lines::LineIndex, d::Union{Dict{Symbol, DataType}, Dict{Symbol, UnionAll}, Dict{Symbol, Union}})
+    for (k, v) in d
+        settype!(lines, k => v)
+    end
+end 
 
 ## Filter
 function Base.filter(f::Function, lines::LineIndex)

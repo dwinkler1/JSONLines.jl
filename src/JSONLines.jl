@@ -1,9 +1,9 @@
 module JSONLines
 
 import JSON3, 
-Mmap,
-Tables,
-StructTypes
+    Mmap,
+    Tables,
+    StructTypes
 import CategoricalArrays
 
 import Base.Threads.@spawn
@@ -41,7 +41,7 @@ export writelines,
     materialize,
     columnwise,
     gettypes,
-    gettypes!,
+    settypes!,
     settype!,
     columntypes,
     filter,
@@ -51,9 +51,9 @@ export writelines,
     findprev,
     findlast
 
-include("utils.jl")
 include("LineIterator.jl")
 include("LineIndex.jl")
+include("utils.jl")
 include("sugar.jl")
 include("write.jl")
 end

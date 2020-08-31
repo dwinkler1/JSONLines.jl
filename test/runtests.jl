@@ -90,35 +90,35 @@ end
     @test LineIndex("testfiles/escapedeol.jsonl", skip = 2, nrows = 10)  |> DataFrame == escaped[3:end, :]
 
 # skip + nrows > nrow(file) (through skip)
-    @test LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw+1, nrows = 1)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt +12, nrows = 120)  |> DataFrame ==  DataFrame()
-    @test LineIndex("testfiles/oneline.jsonl", skip = 2, nrows = 10)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline_plus.jsonl", skip = 2, nrows = 123)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/escapedeol.jsonl", skip = 5, nrows = 1)  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw+1, nrows = 1))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt +12, nrows = 120))  |> DataFrame ==  DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline.jsonl", skip = 2, nrows = 10))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline_plus.jsonl", skip = 2, nrows = 123))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/escapedeol.jsonl", skip = 5, nrows = 1))  |> DataFrame == DataFrame()
 
 # skip = nrow(file) + nrows > 0
-    @test LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw, nrows = 10)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt, nrows = 1)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline.jsonl", skip = 1, nrows = 12) |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline_plus.jsonl", skip = 1, nrows = 1) |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/escapedeol.jsonl", skip = 4, nrows = 1) |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw, nrows = 10))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt, nrows = 1))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline.jsonl", skip = 1, nrows = 12)) |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline_plus.jsonl", skip = 1, nrows = 1)) |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/escapedeol.jsonl", skip = 4, nrows = 1)) |> DataFrame == DataFrame()
 end
 
 @testset "skip" begin
 # skip = nrow(file)
-    @test LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline.jsonl", skip = 1)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline_plus.jsonl", skip = 1)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/escapedeol.jsonl", skip = 4)  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline.jsonl", skip = 1))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline_plus.jsonl", skip = 1))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/escapedeol.jsonl", skip = 4))  |> DataFrame == DataFrame()
 
 # skip > nrow(file)
-    @test LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw + 1)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt + 42) |> DataFrame  == DataFrame()
-    @test LineIndex("testfiles/mtcars.jsonl", skip = typemax(Int))  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline.jsonl", skip = 2)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/oneline_plus.jsonl", skip = 2)  |> DataFrame == DataFrame()
-    @test LineIndex("testfiles/escapedeol.jsonl", skip = 5) |> DataFrame  == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw + 1))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt + 42)) |> DataFrame  == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/mtcars.jsonl", skip = typemax(Int)))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline.jsonl", skip = 2))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline_plus.jsonl", skip = 2))  |> DataFrame == DataFrame()
+    @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/escapedeol.jsonl", skip = 5)) |> DataFrame  == DataFrame()
     
 # skip < nrow(file)
     @test LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw - 1)  |> DataFrame == full_web[end:end, :]
@@ -165,6 +165,15 @@ end
     @test LineIndex("testfiles/mtcars.jsonl", structtype = MyType) |> DataFrame == full_mtcars[:, [:hp, :gear, :drat]]
     @MStructType EscType name
     @test LineIndex("testfiles/escapedeol.jsonl", structtype = EscType) |> DataFrame == escaped[:, [:name]]
+end
+
+@testset "Columnwise" begin
+    mt_cur = LineIndex("testfiles/mtcars.jsonl", nrows = nrow_mt) |> columnwise |> DataFrame 
+    @test mt_cur.mpg == noprom_mtcars.mpg
+end
+
+@testset "Filter" begin
+    @test filter(row -> row[:mpg] > 20, LineIndex("testfiles/mtcars.jsonl")) |> DataFrame == filter(row -> row[:mpg] > 20, noprom_mtcars)
 end
 
 # Cleanup
