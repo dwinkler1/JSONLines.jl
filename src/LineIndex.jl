@@ -17,7 +17,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
     filestart = skip > 0 ? skiprows(buf, fileend, skip, filestart) : filestart
     if filestart == fileend 
         @warn "Skipped all lines"
-        return LineIndex{Missing}(buf, filestart, fileend, Int[0], Symbol[], Dict{Int, Symbol}(),  UnionAll, Dict{Symbol, Union{DataType, UnionAll}}(), nothing, nworkers)
+        return LineIndex{Missing}(buf, filestart, fileend, Int[0], Symbol[], Dict{Int, Symbol}(),  UnionAll, OrderedDict{Symbol, Union{DataType, UnionAll}}(), nothing, nworkers)
     end
     if nworkers > 1
         # Todo issue warning about nrows being ignored
@@ -34,7 +34,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
         lineindex = lineindex[2:end]
         row = parserow(@inbounds(@view(buf[rowindex(lineindex, 1)])), structtype)
         lookup = Dict(names .=> 1:length(names))
-        typelookup = Dict{Symbol, DataType}() # TODO Implement checking
+        typelookup = OrderedDict{Symbol, DataType}() # TODO Implement checking
     else
         typelookup = OrderedDict{Symbol, Union{DataType, UnionAll}}()
         lookup = Dict{Int, Symbol}()
