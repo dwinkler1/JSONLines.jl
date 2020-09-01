@@ -7,7 +7,7 @@ struct LineIndex{T}
     names::Vector{Symbol}
     lookup::Union{Dict{Int, Symbol}, Dict{Symbol, Int}}
     rowtype::Union{DataType, UnionAll}
-    columntypes::Dict{Symbol, Union{DataType, UnionAll, Union}}
+    columntypes::OrderedDict{Symbol, Union{DataType, UnionAll, Union}}
     structtype::Union{Nothing, DataType}
     nworkers::Int
 end
@@ -36,7 +36,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
         lookup = Dict(names .=> 1:length(names))
         typelookup = Dict{Symbol, DataType}() # TODO Implement checking
     else
-        typelookup = Dict{Symbol, Union{DataType, UnionAll}}()
+        typelookup = OrderedDict{Symbol, Union{DataType, UnionAll}}()
         lookup = Dict{Int, Symbol}()
         checkrows = (length(lineindex)-1) > last(schemafrom) ? schemafrom : first(schemafrom):(length(lineindex)-1)
         names = Symbol[]
@@ -56,8 +56,6 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
                 end
             end
         end
-       # names = collect(keys(typelookup))
-#        lookup = Dict(1:length(names) .=> names)
     end
     return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, typelookup, structtype, nworkers) 
 end

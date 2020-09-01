@@ -31,6 +31,9 @@ import Tables:
     istable,
     rowaccess,
     rows
+
+import OrderedCollections:
+    OrderedDict
     
 export writelines,
     @MStructType,
