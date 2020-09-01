@@ -168,8 +168,8 @@ end
 end
 
 @testset "Columnwise" begin
-    mt_cur = LineIndex("testfiles/mtcars.jsonl", nrows = nrow_mt) |> columnwise |> DataFrame 
-    @test mt_cur.mpg == noprom_mtcars.mpg
+    mt_cur = LineIndex("testfiles/mtcars.jsonl")
+    @test columnwise(mt_cur).mpg == noprom_mtcars.mpg
 end
 
 @testset "Filter" begin

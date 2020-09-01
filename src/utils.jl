@@ -258,7 +258,7 @@ function _columnwise(lines, coltypes)
     # Add rows
     for (i, row) in enumerate(lines)
         rnames = propertynames(row)
-        # Add columns
+        # Add values 
         for name in rnames
             # Known columns
             if haskey(lookup, name)
@@ -278,7 +278,7 @@ function _columnwise(lines, coltypes)
            columns[lookup[name]][i] = missing
         end # for mnames
     end # for lines
-    fcolnames = collect(keys(lookup))
+    fcolnames = sort(collect(keys(lookup)), by = k -> lookup[k])
     if !isnothing(coltypes)
         untyped = filter(x -> x ∉ collect(keys(coltypes)), fcolnames)
     else
