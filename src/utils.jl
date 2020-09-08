@@ -70,8 +70,9 @@ end
 
 function tindexrows(buf::T, size::Int, nworkers::Int) where {T}
     parts = partitionbuf(buf, size, nworkers)
-    out = Vector{Task}(undef, nworkers)
-    for i in 1:nworkers
+    nparts = length(parts)
+    out = Vector{Task}(undef, nparts)
+    for i in 1:nparts
         out[i] = @spawn indexrows(buf, last(parts[i]), typemax(Int), _findnexteol(buf, size, first(parts[i])+1)) 
     end
     ret = mapfoldl(fetch, vcat, out)
