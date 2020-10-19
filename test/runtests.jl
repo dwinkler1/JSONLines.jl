@@ -1,10 +1,10 @@
 using JSONLines
-using Test, DataFrames, JLD, Pipe, Tables
+using Test, DataFrames, JSONTables, Pipe, Tables
 
 full_web = LineIndex("testfiles/jsonlwebsite.jsonl") |> DataFrame;
 nrow_fw = nrow(full_web)
 
-mtcars = load("testfiles/mtcars.jld")["mtcars"]
+mtcars = jsontable(read("testfiles/mtcars.json")) |> DataFrame
 full_mtcars = LineIndex("testfiles/mtcars.jsonl"; nworkers = 4) |> DataFrame;
 # Fix R export differences
 rename!(full_mtcars, :_row => :model);
