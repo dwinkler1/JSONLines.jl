@@ -1,7 +1,8 @@
 [deps]
-CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 IndexedTables = "6deec6e2-d858-57c5-ab9b-e6ca5bd20e43"
+JLD = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
+JSONTables = "b9914132-a727-11e9-1322-f18e41205b0b"
 JuliaDB = "a93385a2-3734-596a-9a66-3cfbb77141e6"
 Pipe = "b98c9c47-44ae-5843-9183-064241ee97a0"
 StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
