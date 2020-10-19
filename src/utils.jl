@@ -8,14 +8,14 @@ const _INT_MAX = typemax(Int)
 const _RowType = SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int}},true}
 ## Detect space in UInt8
 import Base: isspace
-@inline Base.isspace(c::UInt8) = 
+@inline Base.isspace(c::UInt8) =
 c == 0x20 || 0x09 <= c <= 0x0d || c == 0x85 || c == 0xa0
 
 ## Raw row utils
 @inline _equaleol(c::UInt8) = (c == 0x0a) # 0x0a == UInt8('\n')
 function _findnexteol(buf::Vector{UInt8}, size::Int, index::Int)
     while true
-        if _equaleol(@inbounds(buf[index])) || isequal(index, size) 
+        if _equaleol(@inbounds(buf[index])) || isequal(index, size)
             return index
         else
             index += 1
@@ -25,7 +25,7 @@ end
 
 function _findpreveol(buf::Vector{UInt8}, filestart::Int, index::Int)
     while true
-        if _equaleol(@inbounds(buf[index])) || isequal(index, filestart) 
+        if _equaleol(@inbounds(buf[index])) || isequal(index, filestart)
             return index
         else
             index -= 1
@@ -37,7 +37,7 @@ function skiprows(buf::Vector{UInt8}, size::Int, n::Int, from::Int)
     isequal(from, size) && (return size)
     for _ in 1:n
         from = _findnexteol(buf, size, from+1)
-        isequal(from, size) && (return size) 
+        isequal(from, size) && (return size)
     end
     return from
 end
@@ -73,7 +73,7 @@ function tindexrows(buf::T, size::Int, nworkers::Int) where {T}
     nparts = length(parts)
     out = Vector{Task}(undef, nparts)
     for i in 1:nparts
-        out[i] = @spawn indexrows(buf, last(parts[i]), typemax(Int), _findnexteol(buf, size, first(parts[i])+1)) 
+        out[i] = @spawn indexrows(buf, last(parts[i]), typemax(Int), _findnexteol(buf, size, first(parts[i])+1))
     end
     ret = mapfoldl(fetch, vcat, out)
     pushfirst!(ret, 0)
@@ -99,18 +99,18 @@ function _eatwhitespace(row::_RowType)
     @inbounds(@view(row[end:end]))
 end
 
-function parserow(row::_RowType, structtype::Nothing) 
+function parserow(row::_RowType, structtype::Nothing)
     return JSON3.read(_eatwhitespace(row))
 end
 
-function parserow(row::_RowType, structtype::DataType) 
+function parserow(row::_RowType, structtype::DataType)
     return JSON3.read(_eatwhitespace(row), structtype)
 end
 
-function parserows(buf::Vector{UInt8}, rows::Vector{Int}, indices, RT, structtype, nworkers::Int) 
-   if nworkers > 1 
-       return _tparserrows(buf, rows, indices, RT, structtype, nworkers) 
-   else 
+function parserows(buf::Vector{UInt8}, rows::Vector{Int}, indices, RT, structtype, nworkers::Int)
+   if nworkers > 1
+       return _tparserrows(buf, rows, indices, RT, structtype, nworkers)
+   else
        return _parserows(buf, rows, indices, RT, structtype)
    end
 end
@@ -187,6 +187,23 @@ function _findall(lines::LineIndex, f)
     return inds
 end
 
+function _tfindall(buf::Vector{UInt8}, f, lineindex::Vector{Int}, nworkers::Int, structtype)
+    tvec = Vector{Task}(undef, nworkers)
+    parts = partitionrows(length(lineindex), nworkers)
+    @sync for (i, part) in enumerate(parts)
+        tvec[i] = @spawn begin
+            out_i = Int[]
+            for row in part
+                index = rowindex(lineindex, row)
+                rp = parserow(@inbounds(@view(buf[index])), structtype)
+                f(rp) && push!(out_i, rp)
+            end
+            out_i
+        end
+    end
+    return mapfoldl(fetch, vcat, tvec)
+end
+
 function _findnext(lines, f, i)
     len = length(lines)
     while !f(@inbounds(lines[i])) && i < len
@@ -211,8 +228,8 @@ function _ftmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{I
             crows = indices[parts[i]]
             for (j, row) in pairs(crows)
                 rindices = rowindex(rows, row)
-                row = parserow(@inbounds(@view(buf[rindices])), structtype)
-                prows[(i-1) * plen + j] = f(row) 
+                rp = parserow(@inbounds(@view(buf[rindices])), structtype)
+                prows[(i-1) * plen + j] = f(rp)
             end
         end
     end
@@ -221,13 +238,13 @@ end
 
 function _tfilter(buf::Vector{UInt8}, f, rowtype, lineindex::Vector{Int}, structtype, nworkers::Int)
     parts = partitionrows(length(lineindex)-1, nworkers)
-    rowbuf = [rowtype[] for _ in 1:nworkers]    
+    rowbuf = [rowtype[] for _ in 1:nworkers]
     @sync for i in 1:nworkers
         @spawn begin
             for row in parts[i]
                 rindices = rowindex(lineindex, row)
-                row = parserow(@inbounds(@view(buf[rindices])), structtype)
-                f(row) && push!(rowbuf[i], row)
+                rp = parserow(@inbounds(@view(buf[rindices])), structtype)
+                f(rp) && push!(rowbuf[i], rp)
             end
         end
     end
@@ -238,8 +255,8 @@ function _fmaterialize(buf::Vector{UInt8}, f::Function, outtype, rows::Vector{In
     prows = Vector{outtype}(undef, length(indices))
     for (j, row) in pairs(indices)
         rindices = rowindex(rows, row)
-        row = parserow(@inbounds(@view(buf[rindices])), structtype)
-        prows[j] = f(row) 
+        rp = parserow(@inbounds(@view(buf[rindices])), structtype)
+        prows[j] = f(rp)
     end
     return prows
 end
@@ -248,18 +265,18 @@ function _columnwise(lines, coltypes)
     lookup = Dict{Symbol, Int}()
     columns = Vector{AbstractVector}(undef, 0)
     ncols = 0
-    # Allocate known columns    
+    # Allocate known columns
     if !isnothing(coltypes)
         for (k, v) in coltypes
             ncols += 1
             lookup[k] = ncols
-            push!(columns, Vector{v}(undef,length(lines))) 
+            push!(columns, Vector{v}(undef,length(lines)))
         end # for
     end # if
     # Add rows
     for (i, row) in enumerate(lines)
         rnames = propertynames(row)
-        # Add values 
+        # Add values
         for name in rnames
             # Known columns
             if haskey(lookup, name)
@@ -271,7 +288,7 @@ function _columnwise(lines, coltypes)
                 @inbounds columns[ncols][1:(i-1)] .= missing
                 lookup[name] = ncols
                 columns[ncols][i] = row[name]
-            end # if 
+            end # if
         end # for rnames
         # Missing in current row
         mnames = filter(x -> x ∉ rnames, collect(keys(lookup)))

@@ -1,13 +1,12 @@
-
 struct LineIndex{T}
     buf::Vector{UInt8}
     filestart::Int
     fileend::Int
     lineindex::Vector{Int}
     names::Vector{Symbol}
-    lookup::Union{Dict{Int, Symbol}, Dict{Symbol, Int}}
-    rowtype::Union{DataType, UnionAll}
-    columntypes::OrderedDict{Symbol, Union{DataType, UnionAll, Union}}
+    lookup::Dict
+    rowtype
+    columntypes::OrderedDict
     structtype::Union{Nothing, DataType}
     nworkers::Int
 end
@@ -15,18 +14,22 @@ end
 function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows::Int = typemax(Int), structtype = nothing, schemafrom = 1:10, nworkers::Int = 1)
     fileend = lastindex(buf)
     filestart = skip > 0 ? skiprows(buf, fileend, skip, filestart) : filestart
-    if filestart == fileend 
+    if filestart == fileend
         @warn "Skipped all lines"
         return LineIndex{Missing}(buf, filestart, fileend, Int[0], Symbol[], Dict{Int, Symbol}(),  UnionAll, OrderedDict{Symbol, Union{DataType, UnionAll}}(), nothing, nworkers)
     end
     if nworkers > 1
-        # Todo issue warning about nrows being ignored
-        lineindex = tindexrows(buf, fileend, nworkers)
+        if nrows < typemax(Int)
+            @warn "Cannot index a subset of rows with multiple threads"
+            lineindex = indexrows(buf, fileend, nrows, filestart)
+        else
+            lineindex = tindexrows(buf, fileend, nworkers)
+        end
     else
         lineindex = indexrows(buf, fileend, nrows, filestart)
     end
     row = parserow(@inbounds(@view(buf[rowindex(lineindex, 1)])), structtype)
-    rowtype = typeof(row) 
+    rowtype = typeof(row)
     isarray = rowtype <: JSON3.Array
     if isarray
         rowtype = JSON3.Array{T, SubArray{UInt8,1,Array{UInt8,1},Tuple{UnitRange{Int}},true},Array{UInt64,1}} where T
@@ -36,7 +39,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
         lookup = Dict(names .=> 1:length(names))
         typelookup = OrderedDict{Symbol, DataType}() # TODO Implement checking
     else
-        typelookup = OrderedDict{Symbol, Union{DataType, UnionAll}}()
+        typelookup = OrderedDict()
         lookup = Dict{Int, Symbol}()
         checkrows = (length(lineindex)-1) > last(schemafrom) ? schemafrom : first(schemafrom):(length(lineindex)-1)
         names = Symbol[]
@@ -57,7 +60,7 @@ function LineIndex(buf::Vector{UInt8}, filestart::Int = 0, skip::Int = 0, nrows:
             end
         end
     end
-    return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, typelookup, structtype, nworkers) 
+    return LineIndex{rowtype}(buf, filestart, fileend, lineindex, names, lookup, rowtype, typelookup, structtype, nworkers)
 end
 
 
@@ -158,7 +161,7 @@ columntypes(lines::LineIndex) = lines.columntypes
 
 Set a single columntype using `:col => Type`.
 """
-function settype!(lines::LineIndex, p::Union{Pair{Symbol, DataType},Pair{Symbol, UnionAll}, Pair{Symbol, Union}}) 
+function settype!(lines::LineIndex, p::Union{Pair{Symbol, DataType},Pair{Symbol, UnionAll}, Pair{Symbol, Union}})
     lines.columntypes[p[1]] = p[2]
 end
 
@@ -171,7 +174,7 @@ function settypes!(lines::LineIndex, d::Union{Dict{Symbol, DataType}, Dict{Symbo
     for (k, v) in d
         settype!(lines, k => v)
     end
-end 
+end
 
 ## Filter
 """
@@ -194,8 +197,11 @@ end
 Return indices of `lines` for which `f` evaluates to `true`
 """
 function Base.findall(f::Function, lines::LineIndex)
-    # todo threaded
-    return _findall(lines, f)
+    if lines.nworkers > 1
+        return _tfindall(lines.buf, f, lines.lineindex, lines.nworkers, lines.structtype)
+    else
+        return _findall(lines, f)
+    end
 end
 
 """
@@ -239,7 +245,7 @@ end
 
 function Base.length(lines::LineIndex)
     return length(lines.lineindex) - 1
-end 
+end
 
 function Base.eltype(lines::LineIndex{T}) where T
     return T
@@ -303,14 +309,14 @@ end
 Base.getindex(lines::LineIndex, r::Vector{Int}, i::Int) = getindex(lines, r, lines.lookup[i])
 Base.getindex(lines::LineIndex{T}, r::Vector{Int}, col::Int) where T <: JSON3.Array = [l[col] for l in getindex(lines, r)]
 
-## Colon, Symbol 
+## Colon, Symbol
 Base.getindex(lines::LineIndex, c::Colon, col::Symbol) = lines[1:end, col]
 
 ## Symbol
 Base.getindex(lines::LineIndex, col::Symbol) = lines[:, col]
 
-## 
-Base.IndexStyle(::Type{LineIndex{T}}) where T = Base.IndexLinear() 
+##
+Base.IndexStyle(::Type{LineIndex{T}}) where T = Base.IndexLinear()
 Base.firstindex(lines::LineIndex) = 1
 Base.lastindex(lines::LineIndex) = length(lines)
 Base.lastindex(lines::LineIndex, i::Int) = length(lines)
@@ -322,7 +328,7 @@ function Base.summary(io::IO, lines::LineIndex)
 end
 
 ## Show
-function Base.summary(lines::LineIndex) 
+function Base.summary(lines::LineIndex)
     io = IOBuffer()
     summary(io, lines)
     String(take!(io))
@@ -332,44 +338,43 @@ Base.show(io::IO, ::MIME"text/plain", lines::LineIndex{Missing}) = summary(io, l
 
 function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex)
     summary(io,lines)
+    try
     print(io, ":\n")
-    scrsz = displaysize(io)[1] -2
-    if scrsz -2 <= 0 
-        print("  \u22ee      \u22f1  ")
+    scrsz = displaysize(io)[1] -4
+    if scrsz <= 0
+        print(" \t \u22ee")
         return
     end
-    if length(lines) <= scrsz
-        x = Matrix(undef, length(lines) + 1, size(lines)[2])
-        x[1, :] = columnnames(lines)
-        for i in 2:length(lines)+1
-            x[i, :] = [getproperty(lines[i-1], name) for name in propertynames(lines[i-1])]
+    if length(lines) < scrsz
+        for i in 1:length(lines)
+            print(materialize(lines, i:i)[1])
+            i!=length(lines) && print('\n')
         end
-        Base.print_matrix(io, x, "  ", "  ")
-        return nothing
     end
     halfd = div(scrsz,2)
     uphalfd = scrsz - halfd
-    indices = [1:uphalfd-2..., lastindex(lines) - halfd .+ collect(2:halfd)...]
-    ll = lines[indices]
-    x = Matrix(undef, scrsz-1, size(lines)[2])
-    x[1, :] = columnnames(lines)
-    for i in 2:(uphalfd-1)
-        vals = [getproperty(ll[i-1], name) for name in propertynames(ll[i-1])]
-        x[i, :] = vals
+    if length(lines) > scrsz
+        for i in 1:(uphalfd-1)
+            print(materialize(lines, i:i)[1])
+            print('\n')
+        end
+        print(" \t \u22ee \n")
+        for i in 2:halfd
+            print(materialize(lines, (lastindex(lines)-halfd + i):(lastindex(lines)-halfd + i))[1])
+            i != halfd && print('\n')
+        end
     end
-    for i in 2:(halfd)
-        vals =  [getproperty(ll[end-halfd+i], name)  for name in propertynames(ll[end-halfd+i])]
-        x[i+uphalfd-1, :] = vals
+    catch e
     end
-    Base.print_matrix(io, x, "    ", "\t ")
 end
 
 
 function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex{T}) where T <: JSON3.Array
     summary(io,lines)
+    try
     print(io, ":\n")
     scrsz = displaysize(io)[1] -2
-    if scrsz -2 <= 0 
+    if scrsz -2 <= 0
         print("  \u22ee      \u22f1  ")
         return
     end
@@ -397,6 +402,8 @@ function Base.show(io::IO,  ::MIME"text/plain", lines::LineIndex{T}) where T <: 
         x[i+uphalfd-1, :] = vals
     end
     Base.print_matrix(io, x, "  ", "  ")
+    catch e
+    end
 end
 
 """
