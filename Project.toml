@@ -1,7 +1,7 @@
 name = "JSONLines"
 uuid = "24c2b838-1c8b-4567-aca0-d45e60436bb9"
 authors = ["Daniel Winkler <danielw2904@disroot.org> and contributors"]
-version = "2.0.0"
+version = "2.0.1"
 
 [deps]
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
