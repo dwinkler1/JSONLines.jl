@@ -1,4 +1,3 @@
-
 """
 @MStructType name fieldnames...
 
@@ -8,7 +7,7 @@ This macro gives a convenient syntax for declaring mutable `StructType`s for rea
 * `fieldnames...`: Names of the variables to be read (must be the same as in the file)
 """
 macro MStructType(name, fieldnames...)
-quote 
+quote
     mutable struct $name
         $(fieldnames...)
         $(esc(name))() = new(fill(missing, $(esc(length(fieldnames))))...)
@@ -24,22 +23,22 @@ eval(:(@MStructType $name $(vars...)))
 end
 
 
-macro select(path::String, nworkers, vars...)
+macro readcols(path::String, nworkers, cols...)
     name = gensym(basename(path))
-    MStructType(name, vars...)
+    MStructType(name, cols...)
     quote
        LineIndex($path, structtype = $name, nworkers = $nworkers)
     end
 end
 
 """
-    select(path::String, cols...; nworkers = 1) => LineIndex
+    readcols(path::String, cols...; nworkers = 1) => LineIndex
 
-* `path`: Path to JSONLines file 
+* `path`: Path to JSONLines file
 * `cols...`: Columnnames to be selected
 * Keyword Argument:
     * `nworkers=1`: Number of threads to use for operations on the resulting LineIndex
 """
-function select(path::String, cols...; nworkers = 1)
-    eval(:(@select $path $nworkers $(cols...)))
+function readcols(path::String, cols...; nworkers = 1)
+    eval(:(@readcols $path $nworkers $(cols...)))
 end

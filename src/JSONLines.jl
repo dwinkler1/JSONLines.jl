@@ -1,6 +1,6 @@
 module JSONLines
 
-import JSON3, 
+import JSON3,
     Mmap,
     Tables,
     StructTypes
@@ -11,10 +11,10 @@ import Base.Threads.@spawn
 import Base:
     length,
     size,
-    iterate, 
-    IteratorSize, 
-    eltype, 
-    getindex, 
+    iterate,
+    IteratorSize,
+    eltype,
+    getindex,
     firstindex,
     lastindex,
     IndexStyle,
@@ -34,10 +34,10 @@ import Tables:
 
 import OrderedCollections:
     OrderedDict
-    
+
 export writelines,
     @MStructType,
-    select,
+    readcols,
     columnnames,
     LineIndex,
     LineIterator,
