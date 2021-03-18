@@ -6,6 +6,7 @@ nrow_fw = nrow(full_web)
 
 mtcars = jsontable(read("testfiles/mtcars.json")) |> DataFrame
 full_mtcars = LineIndex("testfiles/mtcars.jsonl"; nworkers = 4) |> DataFrame;
+@show full_mtcars
 # Fix R export differences
 rename!(full_mtcars, :_row => :model);
 rename!(full_mtcars, names(full_mtcars) .=> lowercase.(names(full_mtcars)))
@@ -23,7 +24,7 @@ escaped = LineIndex("testfiles/escapedeol.jsonl")|> DataFrame;
 @testset "Read" begin
     @test full_web.name == ["Gilbert", "Alexa", "May", "Deloise"]
     @test full_web.wins[1] == [["straight", "7♣"], ["one pair", "10♥"]]
-    @test full_web.wins[end] == [["three of a kind", "5♣"]] 
+    @test full_web.wins[end] == [["three of a kind", "5♣"]]
     @test full_mtcars.mpg == mtcars.mpg
     @test noprom_mtcars.cyl[32] == 4
     @test noprom_mtcars.wt[30] == 2.77
@@ -52,16 +53,16 @@ end
 end
 
 const JL = JSONLines
-@testset "select" begin
-    webl = @pipe JL.select("testfiles/jsonlwebsite.jsonl", :name) |> materialize  |> DataFrame
+@testset "readcols" begin
+    webl = @pipe JL.readcols("testfiles/jsonlwebsite.jsonl", :name) |> materialize  |> DataFrame
     @test webl == full_web[:, [:name]]
-    mtl = @pipe JL.select("testfiles/mtcars.jsonl", :gear, :hp; nworkers = 4) |> materialize |> DataFrame
+    mtl = @pipe JL.readcols("testfiles/mtcars.jsonl", :gear, :hp; nworkers = 4) |> materialize |> DataFrame
     @test mtl == noprom_mtcars[:, [:gear, :hp]]
-    onel = @pipe JL.select("testfiles/oneline.jsonl", :age) |> materialize |> DataFrame
+    onel = @pipe JL.readcols("testfiles/oneline.jsonl", :age) |> materialize |> DataFrame
     @test onel == oneline[:, [:age]]
-    onepl = @pipe JL.select("testfiles/oneline_plus.jsonl", :name) |> materialize |> DataFrame
+    onepl = @pipe JL.readcols("testfiles/oneline_plus.jsonl", :name) |> materialize |> DataFrame
     @test onepl == oneline_plus[:, [:name]]
-    escl = @pipe JL.select("testfiles/escapedeol.jsonl", :name) |> materialize |> DataFrame
+    escl = @pipe JL.readcols("testfiles/escapedeol.jsonl", :name) |> materialize |> DataFrame
     @test escl == escaped[:, [:name]]
 end
 
@@ -119,7 +120,7 @@ end
     @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline.jsonl", skip = 2))  |> DataFrame == DataFrame()
     @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/oneline_plus.jsonl", skip = 2))  |> DataFrame == DataFrame()
     @test (@test_logs (:warn, "Skipped all lines") LineIndex("testfiles/escapedeol.jsonl", skip = 5)) |> DataFrame  == DataFrame()
-    
+
 # skip < nrow(file)
     @test LineIndex("testfiles/jsonlwebsite.jsonl", skip = nrow_fw - 1)  |> DataFrame == full_web[end:end, :]
     @test LineIndex("testfiles/mtcars.jsonl", skip = nrow_mt - 12)  |> DataFrame == noprom_mtcars[(end-11):end, :]
