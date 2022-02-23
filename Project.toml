@@ -11,14 +11,6 @@ OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
-[compat]
-CategoricalArrays = "0.8, 0.9, 0.10"
-JSON3 = "1.1"
-OrderedCollections = "1.3"
-StructTypes = "1.1"
-Tables = "1.0.5"
-julia = "^1.4"
-
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
