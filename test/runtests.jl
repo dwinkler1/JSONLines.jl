@@ -53,16 +53,15 @@ end
 end
 
 @testset "readcols" begin
-    JL = JSONLines
-    webl = @pipe JL.readcols("testfiles/jsonlwebsite.jsonl", :name) |> materialize  |> DataFrame
+    webl = readcols("testfiles/jsonlwebsite.jsonl", :name) |> materialize  |> DataFrame
     @test webl == full_web[:, [:name]]
-    mtl = @pipe JL.readcols("testfiles/mtcars.jsonl", :gear, :hp; nworkers = 4) |> materialize |> DataFrame
+    mtl = readcols("testfiles/mtcars.jsonl", :gear, :hp; nworkers = 4) |> materialize |> DataFrame
     @test mtl == noprom_mtcars[:, [:gear, :hp]]
-    onel = @pipe JL.readcols("testfiles/oneline.jsonl", :age) |> materialize |> DataFrame
+    onel = readcols("testfiles/oneline.jsonl", :age) |> materialize |> DataFrame
     @test onel == oneline[:, [:age]]
-    onepl = @pipe JL.readcols("testfiles/oneline_plus.jsonl", :name) |> materialize |> DataFrame
+    onepl = readcols("testfiles/oneline_plus.jsonl", :name) |> materialize |> DataFrame
     @test onepl == oneline_plus[:, [:name]]
-    escl = @pipe JL.readcols("testfiles/escapedeol.jsonl", :name) |> materialize |> DataFrame
+    escl = readcols("testfiles/escapedeol.jsonl", :name) |> materialize |> DataFrame
     @test escl == escaped[:, [:name]]
 end
 
