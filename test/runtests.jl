@@ -53,7 +53,7 @@ end
 end
 
 @testset "readcols" begin
-    const JL = JSONLines
+    JL = JSONLines
     webl = @pipe JL.readcols("testfiles/jsonlwebsite.jsonl", :name) |> materialize  |> DataFrame
     @test webl == full_web[:, [:name]]
     mtl = @pipe JL.readcols("testfiles/mtcars.jsonl", :gear, :hp; nworkers = 4) |> materialize |> DataFrame
