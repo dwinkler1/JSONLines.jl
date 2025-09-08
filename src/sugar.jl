@@ -19,7 +19,7 @@ end
 end
 
 function MStructType(name, vars...)
-eval(:(@MStructType $name $(vars...)))
+    Base.@invokelatest eval(:(@MStructType $name $(vars...)))
 end
 
 
@@ -40,5 +40,5 @@ end
     * `nworkers=1`: Number of threads to use for operations on the resulting LineIndex
 """
 function readcols(path::String, cols...; nworkers = 1)
-    eval(:(Base.@invokelatest( @readcols $path $nworkers $(cols...)))
+    Base.@invokelatest eval(:(@readcols $path $nworkers $(cols...)))
 end
