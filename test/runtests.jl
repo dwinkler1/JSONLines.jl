@@ -55,7 +55,7 @@ end
 @testset "readcols" begin
     webl = (@readcols "testfiles/jsonlwebsite.jsonl" 1 :name) |> materialize  |> DataFrame
     @test webl == full_web[:, [:name]]
-    mtl = (@readcols "testfiles/mtcars.jsonl" 4 :gear, :hp) |> materialize |> DataFrame
+    mtl = (@readcols "testfiles/mtcars.jsonl" 4 :gear :hp) |> materialize |> DataFrame
     @test mtl == noprom_mtcars[:, [:gear, :hp]]
     onel = (@readcols "testfiles/oneline.jsonl" 1 :age) |> materialize |> DataFrame
     @test onel == oneline[:, [:age]]
