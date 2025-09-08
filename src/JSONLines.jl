@@ -37,6 +37,7 @@ import OrderedCollections:
 
 export writelines,
     @MStructType,
+    @readcols
     readcols,
     columnnames,
     LineIndex,
