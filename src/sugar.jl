@@ -40,5 +40,5 @@ end
     * `nworkers=1`: Number of threads to use for operations on the resulting LineIndex
 """
 function readcols(path::String, cols...; nworkers = 1)
-    eval(:(@readcols $path $nworkers $(cols...)))
+    eval(:(Base.invokelatest(@readcols $path $nworkers $(cols...))))
 end
